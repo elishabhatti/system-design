@@ -17,5 +17,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 router.post('/upload', upload.single('video'), uploadVideo);
+router.get('/', getVideos);
 
 export default router;

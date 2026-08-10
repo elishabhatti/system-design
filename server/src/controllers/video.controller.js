@@ -20,3 +20,18 @@ export const uploadVideo = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+// Add this to your video.controller.js
+export const getVideos = async (req, res) => {
+  try {
+    const videos = await prisma.video.findMany({
+      orderBy: {
+        createdAt: 'desc', // Latest videos first
+      },
+    });
+    return res.status(200).json(videos);
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
