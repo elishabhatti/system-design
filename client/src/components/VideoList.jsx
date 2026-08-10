@@ -36,7 +36,7 @@ export default function VideoList() {
               <video 
                 controls 
                 className="w-full rounded-md max-h-60 bg-black"
-                src={`http://localhost:3000/uploads/${vid.filename}`}
+                src={vid.filepath}
               />
               <span className="text-xs text-gray-400">
                 Size: {(vid.filesize / (1024 * 1024)).toFixed(2)} MB
