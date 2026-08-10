@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getVideos, uploadVideo } from '../controllers/video.controller.js';
+import { upload } from '../config/cloudinary.js';
 
 const router = Router();
 
@@ -13,8 +14,6 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + '-' + file.originalname);
   },
 });
-
-const upload = multer({ storage });
 
 router.post('/upload', upload.single('video'), uploadVideo);
 router.get('/', getVideos);
