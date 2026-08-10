@@ -15,6 +15,6 @@ export const uploadVideo = async (formData, onUploadProgress) => {
 };
 
 export const fetchVideos = async () => {
-  const response = await axios.get('http://localhost:3000/api/videos');
+  const response = await API.get('/videos');
   return response.data;
 };
