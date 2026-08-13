@@ -39,7 +39,7 @@ export default function DetailedVideo() {
             .filter((v) => String(v.id) !== String(currentVideo.id))
             .map((vid) => (
               <Link to={`/watch/${vid.id}`} key={vid.id} className="flex gap-3 group">
-                <div className="w-40 aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0">
+                <div className="w-40 aspect-video bg-black rounded-lg overflow-hidden shrink-0">
                   <video src={vid.filepath} className="w-full h-full object-cover" />
                 </div>
                 <div>
