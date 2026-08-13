@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { SidebarProvider } from './context/SidebarContext';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute, GuestRoute } from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
@@ -26,19 +28,28 @@ function LayoutWithSidebar() {
 
 export default function App() {
   return (
-    <SidebarProvider>
-      <Router>
-        <Routes>
-          <Route element={<LayoutWithSidebar />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/create" element={<VideoUpload />} />
-            <Route path="/watch/:id" element={<VideoStudio />} />
-            <Route path="/profile" element={<UserVideosPage />} />
-          </Route>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-        </Routes>
-      </Router>
-    </SidebarProvider>
+    <AuthProvider>
+      <SidebarProvider>
+        <Router>
+          <Routes>
+            {/* Protected Routes (Sirf logged-in users ke liye) */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<LayoutWithSidebar />}>
+                <Route path="/" element={<Home />} />
+                <Route path="/create" element={<VideoUpload />} />
+                <Route path="/watch/:id" element={<VideoStudio />} />
+                <Route path="/profile" element={<UserVideosPage />} />
+              </Route>
+            </Route>
+
+            {/* Guest Routes (Sirf logged-OUT users ke liye i.e. Login / Register) */}
+            <Route element={<GuestRoute />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+            </Route>
+          </Routes>
+        </Router>
+      </SidebarProvider>
+    </AuthProvider>
   );
 }

@@ -4,6 +4,28 @@ const API = axios.create({
   baseURL: 'http://localhost:3000/api',
 });
 
+// --- Auth APIs ---
+export const registerUser = async (userData) => {
+  const response = await API.post('/auth/register', userData);
+  return response.data;
+};
+
+export const loginUser = async (credentials) => {
+  const response = await API.post('/auth/login', credentials);
+  return response.data;
+};
+
+export const logoutUser = async () => {
+  const response = await API.post('/auth/logout');
+  return response.data;
+};
+
+export const getCurrentUser = async () => {
+  const response = await API.get('/auth/me');
+  return response.data;
+};
+
+// --- Video APIs ---
 export const uploadVideo = async (formData, onUploadProgress) => {
   const response = await API.post('/videos/upload', formData, {
     headers: {
