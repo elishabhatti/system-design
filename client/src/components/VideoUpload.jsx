@@ -1,48 +1,48 @@
-import React, { useState } from 'react';
-import { uploadVideo } from '../../services/api';
+import React, { useState } from "react";
+import { uploadVideo } from "../services/api";
 
 export default function VideoUpload() {
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState("");
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [uploadedData, setUploadedData] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
-    setError('');
+    setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) {
-      setError('Please select a video file.');
+      setError("Please select a video file.");
       return;
     }
 
     const formData = new FormData();
-    formData.append('video', file);
-    formData.append('title', title || file.name);
+    formData.append("video", file);
+    formData.append("title", title || file.name);
 
     try {
       setLoading(true);
       setProgress(0);
-      setError('');
+      setError("");
       setUploadedData(null);
 
       const data = await uploadVideo(formData, (progressEvent) => {
         const percentCompleted = Math.round(
-          (progressEvent.loaded * 100) / progressEvent.total
+          (progressEvent.loaded * 100) / progressEvent.total,
         );
         setProgress(percentCompleted);
       });
 
       setUploadedData(data);
-      setTitle('');
+      setTitle("");
       setFile(null);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to upload video.');
+      setError(err.response?.data?.error || "Failed to upload video.");
     } finally {
       setLoading(false);
     }
@@ -50,11 +50,15 @@ export default function VideoUpload() {
 
   return (
     <div className="max-w-md mx-auto my-10 p-8 bg-white border border-gray-200 rounded-lg font-sans">
-      <h2 className="mb-5 text-xl font-semibold text-gray-900">Upload Video (Day 1 Test)</h2>
+      <h2 className="mb-5 text-xl font-semibold text-gray-900">
+        Upload Video (Day 1 Test)
+      </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block mb-1.5 text-sm font-medium text-gray-700">Video Title (Optional)</label>
+          <label className="block mb-1.5 text-sm font-medium text-gray-700">
+            Video Title (Optional)
+          </label>
           <input
             type="text"
             placeholder="Enter custom title"
@@ -65,7 +69,9 @@ export default function VideoUpload() {
         </div>
 
         <div>
-          <label className="block mb-1.5 text-sm font-medium text-gray-700">Select Video File</label>
+          <label className="block mb-1.5 text-sm font-medium text-gray-700">
+            Select Video File
+          </label>
           <input
             type="file"
             accept="video/*"
@@ -81,20 +87,27 @@ export default function VideoUpload() {
           disabled={loading}
           className="w-full py-2.5 px-4 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:bg-gray-400 cursor-pointer transition-colors"
         >
-          {loading ? `Uploading... ${progress}%` : 'Upload Video'}
+          {loading ? `Uploading... ${progress}%` : "Upload Video"}
         </button>
       </form>
 
       {loading && (
         <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
-          <div className="h-full bg-blue-600 transition-all duration-200" style={{ width: `${progress}%` }}></div>
+          <div
+            className="h-full bg-blue-600 transition-all duration-200"
+            style={{ width: `${progress}%` }}
+          ></div>
         </div>
       )}
 
       {uploadedData && (
         <div className="mt-5 p-4 bg-emerald-50 border border-emerald-200 rounded-md">
-          <h3 className="text-sm font-semibold text-emerald-800 mb-2">Upload Successful!</h3>
-          <pre className="text-xs text-emerald-900 overflow-x-auto">{JSON.stringify(uploadedData, null, 2)}</pre>
+          <h3 className="text-sm font-semibold text-emerald-800 mb-2">
+            Upload Successful!
+          </h3>
+          <pre className="text-xs text-emerald-900 overflow-x-auto">
+            {JSON.stringify(uploadedData, null, 2)}
+          </pre>
         </div>
       )}
     </div>
