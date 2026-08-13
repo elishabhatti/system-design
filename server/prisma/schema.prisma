@@ -9,6 +9,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(uuid())
+  channelName  String   
+  email        String   @unique
+  password     String   // Hashed password (bcrypt)
+  avatarUrl    String?  // Optional profile picture / logo
+  bio          String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  videos       Video[]  // Relation: Ek user ke multiple videos
+}
+
 model Video {
   id         String   @id @default(uuid())
   title      String
@@ -17,4 +30,7 @@ model Video {
   filesize   Int
   mimetype   String
   uploadedAt DateTime @default(now())
+
+  userId     String   // Foreign Key
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade) // Opposite relation field
 }
