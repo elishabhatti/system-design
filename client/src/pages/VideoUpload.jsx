@@ -49,14 +49,14 @@ export default function VideoUpload() {
   };
 
   return (
-    <div className="max-w-md mx-auto my-10 p-8 bg-white border border-gray-200 rounded-lg font-sans">
-      <h2 className="mb-5 text-xl font-semibold text-gray-900">
-        Upload Video (Day 1 Test)
+    <div className="max-w-md mx-auto my-10 p-8 bg-[#1f1f1f] border border-[#272727] rounded-2xl font-sans text-white shadow-2xl">
+      <h2 className="mb-5 text-xl font-bold text-white flex items-center gap-2">
+        <span className="bg-red-600 text-white px-2 py-0.5 rounded text-xs">▶</span> Upload Video Studio
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block mb-1.5 text-sm font-medium text-gray-700">
+          <label className="block mb-1.5 text-xs font-medium text-gray-300">
             Video Title (Optional)
           </label>
           <input
@@ -64,48 +64,48 @@ export default function VideoUpload() {
             placeholder="Enter custom title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-2.5 border border-gray-300 rounded-md text-sm bg-gray-50 outline-none focus:border-blue-600 focus:bg-white"
+            className="w-full p-3 bg-[#121212] border border-[#303030] rounded-xl text-xs text-white outline-none focus:border-blue-500 transition"
           />
         </div>
 
         <div>
-          <label className="block mb-1.5 text-sm font-medium text-gray-700">
+          <label className="block mb-1.5 text-xs font-medium text-gray-300">
             Select Video File
           </label>
           <input
             type="file"
             accept="video/*"
             onChange={handleFileChange}
-            className="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-50 text-gray-600 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-gray-900 file:text-white hover:file:bg-gray-800 cursor-pointer"
+            className="w-full p-2.5 bg-[#121212] border border-[#303030] rounded-xl text-xs text-gray-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-white file:text-black hover:file:bg-gray-200 cursor-pointer transition"
           />
         </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-red-500 text-xs">{error}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 px-4 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:bg-gray-400 cursor-pointer transition-colors"
+          className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold disabled:bg-gray-700 cursor-pointer transition-colors shadow-lg"
         >
           {loading ? `Uploading... ${progress}%` : "Upload Video"}
         </button>
       </form>
 
       {loading && (
-        <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+        <div className="w-full h-1.5 bg-[#121212] rounded-full mt-4 overflow-hidden">
           <div
-            className="h-full bg-blue-600 transition-all duration-200"
+            className="h-full bg-blue-500 transition-all duration-200"
             style={{ width: `${progress}%` }}
           ></div>
         </div>
       )}
 
       {uploadedData && (
-        <div className="mt-5 p-4 bg-emerald-50 border border-emerald-200 rounded-md">
-          <h3 className="text-sm font-semibold text-emerald-800 mb-2">
+        <div className="mt-5 p-4 bg-emerald-950/40 border border-emerald-800 rounded-xl">
+          <h3 className="text-xs font-bold text-emerald-400 mb-2">
             Upload Successful!
           </h3>
-          <pre className="text-xs text-emerald-900 overflow-x-auto">
+          <pre className="text-[10px] text-emerald-300 overflow-x-auto bg-black/40 p-2 rounded-lg">
             {JSON.stringify(uploadedData, null, 2)}
           </pre>
         </div>

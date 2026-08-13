@@ -4,11 +4,11 @@ import { SidebarProvider } from './context/SidebarContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
-import CreateVideo from './pages/Create_Video';
-import UserVideosPage from './pages/User_Videos_Page';
+import UserVideosPage from './pages/UserVideosPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VideoStudio from './pages/VideoStudio';
+import VideoUpload from './pages/VideoUpload';
 
 function LayoutWithSidebar() {
   return (
@@ -31,7 +31,7 @@ export default function App() {
         <Routes>
           <Route element={<LayoutWithSidebar />}>
             <Route path="/" element={<Home />} />
-            <Route path="/create" element={<CreateVideo />} />
+            <Route path="/create" element={<VideoUpload />} />
             <Route path="/watch/:id" element={<VideoStudio />} />
             <Route path="/profile" element={<UserVideosPage />} />
           </Route>

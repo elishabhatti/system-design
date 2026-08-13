@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchVideos } from '../services/api';
 
-const categories = ["All", "Gaming", "Music", "Live", "Podcasts", "Tech", "React.js", "Mixes", "Vlogs", "ASP.NET Core"];
+const categories = ["All", "Development", "System Design", "Backend", "Frontend", "Tech"];
 
 export default function Home() {
   const [videos, setVideos] = useState([]);
@@ -16,18 +16,18 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-center p-20 text-gray-400 bg-[#0f0f0f]">Loading feed...</div>;
+  if (loading) return <div className="text-center p-20 text-xs text-gray-600 bg-[#0a0a0a]">Loading feed...</div>;
 
   return (
-    <div className="px-6 py-4 bg-[#0f0f0f] min-h-screen text-white">
-      {/* Category Filter Pills */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-none mb-6">
+    <div className="px-6 py-6 bg-[#0a0a0a] min-h-screen text-white">
+      {/* Category Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-none mb-6">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-              activeCategory === cat ? 'bg-white text-black font-semibold' : 'bg-[#272727] text-white hover:bg-[#3f3f3f]'
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition ${
+              activeCategory === cat ? 'bg-white text-black border-white' : 'bg-[#141414] text-gray-400 border-[#262626] hover:border-gray-500'
             }`}
           >
             {cat}
@@ -35,22 +35,22 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Video Grid Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
+      {/* Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         {videos.map((vid) => (
-          <Link to={`/watch/${vid.id}`} key={vid.id} className="group flex flex-col gap-3">
-            <div className="aspect-video bg-[#1f1f1f] rounded-2xl overflow-hidden relative border border-[#272727] shadow-lg">
-              <video src={vid.filepath} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" muted />
-              <span className="absolute bottom-2 right-2 bg-black/80 text-[10px] px-1.5 py-0.5 rounded text-gray-200">14:22</span>
+          <Link to={`/watch/${vid.id}`} key={vid.id} className="group flex flex-col gap-2.5 bg-[#101010] border border-[#222222] p-3 rounded-xl hover:border-gray-500 transition">
+            <div className="aspect-video bg-black rounded-lg overflow-hidden relative border border-[#1f1f1f]">
+              <video src={vid.filepath} className="w-full h-full object-cover group-hover:scale-[1.02] transition duration-300" muted />
+              <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-[10px] px-1.5 py-0.5 rounded text-gray-300 border border-[#333]">10:15</span>
             </div>
-            <div className="flex gap-3">
-              <div className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                {vid.title ? vid.title[0].toUpperCase() : 'S'}
+            <div className="flex gap-2.5 items-start mt-1">
+              <div className="w-7 h-7 rounded-full bg-[#222] border border-[#333] flex items-center justify-center font-medium text-[10px] text-gray-300 shrink-0">
+                {vid.title ? vid.title[0].toUpperCase() : 'E'}
               </div>
-              <div className="flex flex-col">
-                <h3 className="font-semibold text-white text-sm line-clamp-2 group-hover:text-blue-400 transition">{vid.title}</h3>
-                <span className="text-xs text-gray-400 mt-1">Elisha Jameel</span>
-                <span className="text-xs text-gray-500">24K views • 2 days ago</span>
+              <div className="flex flex-col overflow-hidden">
+                <h3 className="font-medium text-white text-xs truncate group-hover:underline">{vid.title}</h3>
+                <span className="text-[11px] text-gray-500 mt-0.5">Elisha Jameel</span>
+                <span className="text-[10px] text-gray-600">1.2K views • Today</span>
               </div>
             </div>
           </Link>
