@@ -1,9 +1,11 @@
-import React from 'react'
+import React from 'react';
+import VideoUpload from '../components/VideoUpload';
 
-const CreateVideo = () => {
+export default function CreateVideo() {
   return (
-    <div>CreateVideo</div>
-  )
+    <div className="py-8">
+      <h1 className="text-center text-xl font-bold mb-4 text-gray-800">Upload Video to Studio</h1>
+      <VideoUpload />
+    </div>
+  );
 }
-
-export default CreateVideo
