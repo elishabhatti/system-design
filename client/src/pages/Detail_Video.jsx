@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchVideos } from '../services/api';
+import { fetchVideos } from '../../services/api';
 
 export default function DetailedVideo() {
   const { id } = useParams();
