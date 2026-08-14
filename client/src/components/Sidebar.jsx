@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useSidebar } from '../context/SidebarContext';
-import { Home, User, PlusSquare, Compass, History, Bookmark, Settings, Layers } from 'lucide-react';
+import { Home, User, PlusSquare, Compass, History, Bookmark } from 'lucide-react';
 
 export default function Sidebar() {
   const { isSidebarOpen } = useSidebar();
@@ -22,7 +22,7 @@ export default function Sidebar() {
 
   if (!isSidebarOpen) {
     return (
-      <aside className="w-20 bg-[#09090b] text-zinc-400 flex flex-col items-center py-5 sticky top-16 h-[calc(100vh-4rem)] border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl">
+      <aside className="w-20 bg-[#09090b] text-zinc-400 flex flex-col items-center py-6 sticky top-16 h-[calc(100vh-4rem)] border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl">
         <div className="space-y-3 flex flex-col items-center">
           {mainLinks.map((link) => {
             const Icon = link.icon;
@@ -49,7 +49,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-[#09090b] text-zinc-300 flex flex-col p-4 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl">
-      {/* Main Navigation */}
       <div className="space-y-1.5">
         <p className="px-3 pb-2 text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Menu</p>
         {mainLinks.map((link) => {
@@ -72,7 +71,6 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Secondary Library Links */}
       <div className="mt-8 pt-6 border-t border-zinc-800/80 space-y-1.5">
         <p className="px-3 pb-2 text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Discover</p>
         {secondaryLinks.map((item, idx) => {
@@ -80,7 +78,7 @@ export default function Sidebar() {
           return (
             <button 
               key={idx}
-              className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-medium border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 hover:border-zinc-800/50 transition"
+              className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-medium border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 hover:border-zinc-800/50 transition cursor-pointer"
             >
               <Icon className="w-4 h-4 text-zinc-500" />
               {item.label}
@@ -89,7 +87,6 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Creator Badge Box at bottom */}
       <div className="mt-auto pt-4 border-t border-zinc-800/60">
         <div className="p-3 rounded-xl bg-gradient-to-br from-zinc-900 to-[#121217] border border-zinc-800 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-xs">

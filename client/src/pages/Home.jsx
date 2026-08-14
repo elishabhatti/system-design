@@ -11,7 +11,6 @@ const categories = [
   { name: "Tech", icon: Compass },
 ];
 
-// Helper function for relative time (e.g., "2 days ago")
 const timeAgo = (dateString) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -65,8 +64,6 @@ export default function Home() {
 
   return (
     <div className="px-8 py-8 bg-[#09090b] min-h-screen text-zinc-100 selection:bg-indigo-500 selection:text-white">
-      
-      {/* Page Title Section matching Portfolio Vibe */}
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mb-2">
           Featured <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">Masterclasses</span>
@@ -76,7 +73,6 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Category Pills - Portfolio Styled */}
       <div className="flex items-center gap-2.5 overflow-x-auto pb-4 scrollbar-none mb-8">
         {categories.map((cat) => {
           const Icon = cat.icon;
@@ -85,20 +81,19 @@ export default function Home() {
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-300 border ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-300 border cursor-pointer ${
                 isActive 
-                  ? 'bg-white text-black border-white shadow-md scale-[1.02]' 
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-indigo-500 shadow-md shadow-indigo-500/20 scale-[1.02]' 
                   : 'bg-[#121217] text-zinc-400 border-zinc-800/80 hover:border-zinc-700 hover:text-zinc-200 hover:bg-[#181822]'
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-black' : 'text-zinc-400'}`} />
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
               {cat.name}
             </button>
           );
         })}
       </div>
 
-      {/* Grid Layout matching Portfolio Project Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {videos.map((vid) => {
           const channelName = vid.user?.channelName || "Elisha Jameel";
@@ -110,7 +105,6 @@ export default function Home() {
               key={vid.id} 
               className="group flex flex-col gap-3.5 bg-[#121217]/60 backdrop-blur-md border border-zinc-800/80 p-4 rounded-2xl hover:border-indigo-500/50 hover:bg-[#15151c] transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1"
             >
-              {/* Thumbnail Box */}
               <div className="aspect-video bg-black rounded-xl overflow-hidden relative border border-zinc-800/60 shadow-inner">
                 <video 
                   src={vid.filepath} 
@@ -126,7 +120,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Video Meta Info */}
               <div className="flex gap-3 items-start mt-0.5">
                 <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-200 shrink-0 shadow-inner group-hover:border-indigo-500/40 transition">
                   {initialLetter}
