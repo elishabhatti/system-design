@@ -4,6 +4,7 @@ export const uploadVideo = async (req, res) => {
   try {
     const { title } = req.body;
     const file = req.file;
+    const userId = req.userId; 
 
     const newVideo = await prisma.video.create({
       data: {
@@ -12,6 +13,7 @@ export const uploadVideo = async (req, res) => {
         filepath: file.path,
         filesize: file.size,
         mimetype: file.mimetype,
+        userId: userId,
       },
     });
 
