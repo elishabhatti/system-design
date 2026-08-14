@@ -14,11 +14,11 @@ import VideoUpload from './pages/VideoUpload';
 
 function LayoutWithSidebar() {
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white font-sans flex flex-col">
+    <div className="min-h-screen text-white font-sans flex flex-col">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto bg-[#0f0f0f]">
+        <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>
