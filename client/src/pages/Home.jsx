@@ -64,15 +64,6 @@ export default function Home() {
 
   return (
     <div className="px-8 py-8 bg-[#09090b] min-h-screen text-zinc-100 selection:bg-indigo-500 selection:text-white">
-      <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mb-2">
-          Featured <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">Masterclasses</span>
-        </h1>
-        <p className="text-xs text-zinc-400 max-w-xl font-normal">
-          Explore technical walkthroughs, system architecture designs, and full-stack engineering logs.
-        </p>
-      </div>
-
       <div className="flex items-center gap-2.5 overflow-x-auto pb-4 scrollbar-none mb-8">
         {categories.map((cat) => {
           const Icon = cat.icon;
