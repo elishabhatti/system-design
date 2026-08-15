@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useSidebar } from '../context/SidebarContext';
-import { Search, Bell, Video, Mic, Menu } from 'lucide-react';
+import { Search, Bell, Video, Mic, Menu, Plus } from 'lucide-react';
 
 export default function Navbar() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="sticky top-0 z-50 flex items-center justify-between px-4 h-16 bg-[#09090b]/95 backdrop-blur-md border-b border-zinc-800/80 text-zinc-100">
+    <header className="sticky top-0 z-50 flex items-center justify-between px-4 h-16 backdrop-blur-md border-b border-zinc-800/80 text-zinc-100">
       
       {/* Left: Menu Toggle & YouTube Style Brand Logo */}
       <div className="flex items-center gap-4">
@@ -47,7 +47,7 @@ export default function Navbar() {
           to="/create" 
           className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/80 text-zinc-200 rounded-full text-xs font-semibold shadow-sm transition"
         >
-          <Video className="w-4 h-4 text-indigo-400" />
+          <Plus />
           <span>Create</span>
         </Link>
 
