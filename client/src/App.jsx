@@ -34,10 +34,10 @@ export default function App() {
           <Routes>
             {/* Protected Routes (Sirf logged-in users ke liye) */}
             <Route element={<ProtectedRoute />}>
+                <Route path="/watch/:id" element={<VideoStudio />} />
               <Route element={<LayoutWithSidebar />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/create" element={<VideoUpload />} />
-                <Route path="/watch/:id" element={<VideoStudio />} />
                 <Route path="/profile" element={<UserVideosPage />} />
               </Route>
             </Route>
