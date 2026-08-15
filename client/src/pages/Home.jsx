@@ -151,7 +151,7 @@ export default function Home() {
 
       {/* Main Video Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-y sm:gap-y-10">
-        {dummyVideos.map((vid) => {
+        {videos.map((vid) => {
           const channelName = vid.user?.channelName || "Elisha Jameel";
           const initialLetter = channelName[0].toUpperCase();
 
@@ -226,7 +226,7 @@ export default function Home() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {dummyShorts.map((short) => (
             <div key={short.id} className="group flex flex-col gap-2 cursor-pointer">
-              <div className="aspect-[9/16] bg-[#1f1f1f] rounded-xl overflow-hidden relative shadow-lg">
+              <div className="aspect-9/16 bg-[#1f1f1f] rounded-xl overflow-hidden relative shadow-lg">
                 <video 
                   src={short.videoUrl} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -235,7 +235,7 @@ export default function Home() {
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
                   onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-70"></div>
+                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-70"></div>
                 <div className="absolute bottom-3 left-3 right-3 flex flex-col">
                   <span className="text-xs font-semibold text-white line-clamp-2 leading-snug">{short.title}</span>
                   <span className="text-[11px] text-zinc-300 mt-1">{short.views}</span>
