@@ -60,7 +60,7 @@
     // Collapsed Sidebar View (Icon Only)
     if (!isSidebarOpen) {
       return (
-        <aside className="w-20 text-zinc-400 flex flex-col items-center py-6 sticky top-16 h-[calc(100vh-4rem)] border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl">
+        <aside className="w-20 text-zinc-400 flex-col items-center py-6 sticky top-16 h-[calc(100vh-4rem)] border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl">
           <div className="space-y-3 flex flex-col items-center">
             {mainLinks.map((link) => {
               const Icon = link.icon;
@@ -87,7 +87,7 @@
 
     // Expanded Sidebar View (Full YouTube Style)
     return (
-      <aside className="w-64 text-zinc-300 flex flex-col p-3 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl scrollbar-thin scrollbar-thumb-zinc-800">
+      <aside className="w-64 text-zinc-300 flex-col p-3 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-zinc-800/80 hidden md:flex shrink-0 shadow-2xl scrollbar-thin scrollbar-thumb-zinc-800">
         
         {/* Main Section */}
         <div className="space-y-1 pb-4 border-b border-zinc-800/80">
@@ -100,7 +100,7 @@
                 key={link.path}
                 className={`flex items-center gap-5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all duration-300 ${
                   active 
-                    ? 'border-indigo-500/40 bg-gradient-to-r from-indigo-600/15 to-violet-600/10 text-white shadow-lg shadow-indigo-500/10' 
+                    ? 'border-indigo-500/40 bg-linear-to-r from-indigo-600/15 to-violet-600/10 text-white shadow-lg shadow-indigo-500/10' 
                     : 'border-transparent text-zinc-300 hover:text-white hover:bg-zinc-900/60 hover:border-zinc-800'
                 }`}
               >
@@ -144,7 +144,7 @@
               key={idx}
               className="w-full flex items-center gap-3.5 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 transition cursor-pointer"
             >
-              <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${sub.color} flex items-center justify-center text-[10px] font-bold text-white shrink-0`}>
+              <div className={`w-5 h-5 rounded-full bg-linear-to-br ${sub.color} flex items-center justify-center text-[10px] font-bold text-white shrink-0`}>
                 {sub.initial}
               </div>
               <span className="truncate">{sub.name}</span>

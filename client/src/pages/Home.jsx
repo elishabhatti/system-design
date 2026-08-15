@@ -178,7 +178,7 @@ export default function Home() {
 
               {/* Details */}
               <div className="flex gap-3 items-start">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-md">
+                <div className="w-9 h-9 rounded-full bg-linear-to-tr from-indigo-600 to-violet-600 flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-md">
                   {initialLetter}
                 </div>
                 <div className="flex flex-col overflow-hidden w-full pr-2">
@@ -216,7 +216,7 @@ export default function Home() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {dummyShorts.map((short) => (
             <div key={short.id} className="group flex flex-col gap-2 cursor-pointer">
-              <div className="aspect-[9/16] bg-zinc-900 rounded-2xl overflow-hidden relative border border-zinc-800/60 shadow-lg">
+              <div className="aspect-9/16 bg-zinc-900 rounded-2xl overflow-hidden relative border border-zinc-800/60 shadow-lg">
                 <video 
                   src={short.videoUrl} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -225,7 +225,7 @@ export default function Home() {
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
                   onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
                 <div className="absolute bottom-3 left-3 right-3 flex flex-col">
                   <span className="text-xs font-semibold text-white line-clamp-2 leading-tight">{short.title}</span>
                   <span className="text-[10px] text-zinc-300 mt-1 font-mono">{short.views}</span>

@@ -11,13 +11,13 @@ export default function UserVideosPage() {
 
   return (
     <div className="bg-[#09090b] min-h-screen text-zinc-100 pb-16 selection:bg-indigo-500 selection:text-white">
-      <div className="h-44 w-full bg-gradient-to-r from-indigo-950 via-zinc-900 to-violet-950 border-b border-zinc-800/80 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent"></div>
+      <div className="h-44 w-full bg-linear-to-r from-indigo-950 via-zinc-900 to-violet-950 border-b border-zinc-800/80 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent"></div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6 -mt-12 relative z-10 pb-8 border-b border-zinc-800/80">
-          <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 border-4 border-[#09090b] flex items-center justify-center text-2xl font-bold shadow-2xl shadow-indigo-500/20 text-white shrink-0">
+          <div className="w-24 h-24 rounded-2xl bg-linear-to-br from-indigo-600 to-violet-700 border-4 border-[#09090b] flex items-center justify-center text-2xl font-bold shadow-2xl shadow-indigo-500/20 text-white shrink-0">
             {initial}
           </div>
 
@@ -44,7 +44,7 @@ export default function UserVideosPage() {
           </div>
 
           <div className="flex items-center gap-3 pt-4 md:pt-2">
-            <button className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-500/20 transition duration-300 cursor-pointer">
+            <button className="flex items-center gap-2 bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-500/20 transition duration-300 cursor-pointer">
               <Sparkles className="w-3.5 h-3.5" /> Customize Channel
             </button>
             <button className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition cursor-pointer">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fetchVideos } from "../services/api";
 import { Play, ThumbsUp, Share2, Bookmark, MoreVertical, Sparkles } from "lucide-react";
+import Navbar from "../components/Navbar";
 
 export default function VideoStudio() {
   const [videos, setVideos] = useState([]);
@@ -46,6 +47,8 @@ export default function VideoStudio() {
   const sidebarVideos = videos.filter((v) => v.id !== currentVideo.id);
 
   return (
+    <>
+    <Navbar />
     <div className="max-w-full mx-auto px-4 lg:px-8 py-6 text-zinc-100 grid grid-cols-1 lg:grid-cols-12 gap-6">
       
       {/* Left Column: Main Player & Details */}
@@ -72,7 +75,7 @@ export default function VideoStudio() {
           
           {/* Channel Info */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center font-bold text-xs text-white shadow-md">
+            <div className="w-10 h-10 rounded-full bg-linear-to from-indigo-600 to-violet-600 flex items-center justify-center font-bold text-xs text-white shadow-md">
               {(currentVideo.user?.channelName || "E")[0].toUpperCase()}
             </div>
             <div>
@@ -175,5 +178,6 @@ export default function VideoStudio() {
       </div>
 
     </div>
+    </>
   );
 }
