@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Flame, Compass, Code, Server, Layout, Cpu, Sparkles, Clapperboard, MoreVertical } from 'lucide-react';
+import { Sparkles, Flame, Music, Gamepad2, Laptop, GraduationCap, Smile, Radio, Film, Tv, Headphones, Zap, Code2, BrainCircuit, MoreVertical } from 'lucide-react';
 
 const categories = [
   { name: "All", icon: Sparkles },
-  { name: "Music", icon: Code },
-  { name: "Mixes", icon: Code },
-  { name: "Gaming", icon: Code },
-  { name: "Tech", icon: Code },
-  { name: "Education", icon: Code },
-  { name: "Comedy", icon: Code },
-  { name: "Live", icon: Code },
-  { name: "Cartoon", icon: Code },
-  { name: "Anime", icon: Code },
-  { name: "Beats", icon: Code },
-  { name: "Phonk", icon: Code },
-  { name: "Programming", icon: Code },
-  { name: "Thoughts", icon: Code },
+  { name: "Music", icon: Music },
+  { name: "Mixes", icon: Flame },
+  { name: "Gaming", icon: Gamepad2 },
+  { name: "Tech", icon: Laptop },
+  { name: "Education", icon: GraduationCap },
+  { name: "Comedy", icon: Smile },
+  { name: "Live", icon: Radio },
+  { name: "Cartoon", icon: Film },
+  { name: "Anime", icon: Tv },
+  { name: "Beats", icon: Headphones },
+  { name: "Phonk", icon: Zap },
+  { name: "Programming", icon: Code2 },
+  { name: "Thoughts", icon: BrainCircuit },
 ];
 
 // YouTube Style Rich Dummy Videos for Grid Testing
@@ -118,17 +118,17 @@ export default function Home() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh]">
-        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-[11px] text-zinc-500 mt-3 font-mono tracking-widest uppercase">Loading Feed...</p>
+        <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-zinc-400 mt-3 font-medium">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-6 text-zinc-100 selection:bg-indigo-500 selection:text-white">
+    <div className="px-6 py-4 text-zinc-100 max-w-[1800px] mx-auto">
       
       {/* YouTube Style Filter Chips Bar */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-none mb-6">
+      <div className="flex items-center gap-3 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0 bg-[#0f0f0f] z-20">
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isActive = activeCategory === cat.name;
@@ -136,13 +136,13 @@ export default function Home() {
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                 isActive 
-                  ? 'bg-white text-zinc-950 border-white font-semibold shadow-sm' 
-                  : 'bg-[#27272a]/60 text-zinc-300 border-transparent hover:bg-[#3f3f46]/80'
+                  ? 'bg-white text-zinc-950 font-semibold' 
+                  : 'bg-[#27272a] text-zinc-200 hover:bg-[#3f3f46]'
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-zinc-950' : 'text-zinc-400'}`} />
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-zinc-950' : 'text-zinc-300'}`} />
               {cat.name}
             </button>
           );
@@ -150,8 +150,8 @@ export default function Home() {
       </div>
 
       {/* Main Video Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
-        {videos.map((vid) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-y sm:gap-y-10">
+        {dummyVideos.map((vid) => {
           const channelName = vid.user?.channelName || "Elisha Jameel";
           const initialLetter = channelName[0].toUpperCase();
 
@@ -161,40 +161,48 @@ export default function Home() {
               key={vid.id} 
               className="group flex flex-col gap-3 cursor-pointer"
             >
-              {/* Thumbnail */}
-              <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden relative border border-zinc-800/40">
+              {/* Thumbnail Container */}
+              <div className="aspect-video bg-[#1f1f1f] rounded-xl overflow-hidden relative shadow-md">
                 <video 
                   src={vid.filepath} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out" 
+                  className="w-full h-full object-cover group-hover:rounded-none transition-all duration-200" 
                   muted 
                   loop
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
                   onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                 />
-                <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md text-[10px] font-mono px-1.5 py-0.5 rounded text-zinc-200">
-                  16:9
+                <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-[11px] font-medium px-1 rounded text-white">
+                  12:45
                 </span>
               </div>
 
-              {/* Details */}
-              <div className="flex gap-3 items-start">
-                <div className="w-9 h-9 rounded-full bg-linear-to-tr from-indigo-600 to-violet-600 flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-md">
+              {/* Video Meta Info */}
+              <div className="flex gap-3 items-start px-0.5">
+                {/* Channel Avatar */}
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow">
                   {initialLetter}
                 </div>
-                <div className="flex flex-col overflow-hidden w-full pr-2">
-                  <h3 className="font-semibold text-zinc-100 text-xs sm:text-sm tracking-tight line-clamp-2 group-hover:text-indigo-400 transition-colors leading-snug">
+
+                {/* Title & Details */}
+                <div className="flex flex-col overflow-hidden w-full">
+                  <h3 className="font-semibold text-zinc-100 text-sm tracking-tight line-clamp-2 leading-snug group-hover:text-white">
                     {vid.title}
                   </h3>
-                  <span className="text-xs text-zinc-400 mt-1 hover:text-zinc-200 transition font-medium">
+                  <span className="text-xs text-zinc-400 mt-1 hover:text-zinc-200 transition font-normal">
                     {channelName}
                   </span>
-                  <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-0.5">
+                  <div className="flex items-center gap-1 text-xs text-zinc-400 mt-0.5">
                     <span>{vid.views || '12K views'}</span>
                     <span>•</span>
                     <span>{timeAgo(vid.uploadedAt || new Date())}</span>
                   </div>
                 </div>
-                <button className="text-zinc-400 hover:text-zinc-200 opacity-0 group-hover:opacity-100 transition p-1">
+
+                {/* Options Menu Button */}
+                <button 
+                  onClick={(e) => { e.preventDefault(); }} 
+                  className="text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100 transition p-1"
+                >
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
@@ -203,20 +211,22 @@ export default function Home() {
         })}
       </div>
 
-      {/* YouTube Style Shorts Section Divider */}
-      <div className="mt-12 pt-8 border-t border-zinc-800/80">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-base font-bold text-white tracking-tight">Shorts</h2>
+      {/* YouTube Style Shorts Section */}
+      <div className="mt-14 pt-8 border-t border-zinc-800/80">
+        <div className="flex items-center justify-between mb-5 px-1">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
+              <path d="M17.77 10.32l-8.5-5.2A1 1 0 0 0 7.8 6v12a1 1 0 0 0 1.47.88l8.5-5.2a1 1 0 0 0 0-1.76z"/>
+            </svg>
+            <h2 className="text-lg font-bold text-white tracking-tight">Shorts</h2>
           </div>
-          <button className="text-xs text-indigo-400 hover:underline font-semibold">View all</button>
         </div>
 
-        {/* Shorts Horizontal Scroll Grid */}
+        {/* Shorts Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {dummyShorts.map((short) => (
             <div key={short.id} className="group flex flex-col gap-2 cursor-pointer">
-              <div className="aspect-9/16 bg-zinc-900 rounded-2xl overflow-hidden relative border border-zinc-800/60 shadow-lg">
+              <div className="aspect-[9/16] bg-[#1f1f1f] rounded-xl overflow-hidden relative shadow-lg">
                 <video 
                   src={short.videoUrl} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -225,10 +235,10 @@ export default function Home() {
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
                   onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                 />
-                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-70"></div>
                 <div className="absolute bottom-3 left-3 right-3 flex flex-col">
-                  <span className="text-xs font-semibold text-white line-clamp-2 leading-tight">{short.title}</span>
-                  <span className="text-[10px] text-zinc-300 mt-1 font-mono">{short.views}</span>
+                  <span className="text-xs font-semibold text-white line-clamp-2 leading-snug">{short.title}</span>
+                  <span className="text-[11px] text-zinc-300 mt-1">{short.views}</span>
                 </div>
               </div>
             </div>

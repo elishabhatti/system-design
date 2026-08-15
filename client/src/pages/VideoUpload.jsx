@@ -50,7 +50,7 @@ export default function VideoUpload() {
   };
 
   return (
-    <div className="max-w-md mx-auto my-12 p-8 bg-[#121217] border border-zinc-800 rounded-2xl font-sans text-zinc-100 shadow-2xl backdrop-blur-md">
+    <div className="max-w-full mx-auto my-12 p-8 border border-zinc-800 rounded-2xl font-sans text-zinc-100 shadow-2xl backdrop-blur-md">
       <h2 className="mb-2 text-xl font-bold text-white flex items-center gap-2">
         <Sparkles className="w-5 h-5 text-indigo-400" /> Upload Masterclass
       </h2>
