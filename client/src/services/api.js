@@ -41,3 +41,7 @@ export const fetchVideos = async () => {
   const response = await API.get('/videos');
   return response.data;
 };
+export const deleteVideo = async (videoId) => {
+  const response = await API.delete(`/videos/${videoId}`);
+  return response.data;
+};

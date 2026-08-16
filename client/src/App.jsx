@@ -6,11 +6,11 @@ import { ProtectedRoute, GuestRoute } from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
-import UserVideosPage from './pages/UserVideosPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VideoStudio from './pages/VideoStudio';
 import VideoUpload from './pages/VideoUpload';
+import UserProfile from './pages/UserProfile';
 
 function LayoutWithSidebar() {
   return (
@@ -38,7 +38,7 @@ export default function App() {
               <Route element={<LayoutWithSidebar />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/create" element={<VideoUpload />} />
-                <Route path="/profile" element={<UserVideosPage />} />
+                <Route path="/profile" element={<UserProfile />} />
               </Route>
             </Route>
 

@@ -165,7 +165,7 @@ export default function Home() {
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
                   onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
 
                 {vid.isLive ? (
                   <span className="absolute top-2 left-2 flex items-center gap-1 bg-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded text-white tracking-wide">

@@ -57,3 +57,31 @@ export const getVideos = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+export const deleteVideo = async (req, res) => {
+  try {
+    const videoId = parseInt(req.params.id, 10);
+    const userId = req.userId;
+    
+    const video = await prisma.video.findUnique({
+      where: { id: videoId },
+    });
+
+    if (!video) {
+      return res.status(404).json({ error: "Video not found." });
+    }
+
+    if (video.userId !== userId) {
+      return res.status(403).json({ error: "You are not the owner of this video." });
+    }
+
+    await prisma.video.delete({
+      where: { id: videoId },
+    });
+
+    return res.status(200).json({ message: "Video deleted successfully." });
+  } catch (error) {
+    console.error('Error deleting video:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { getVideos, uploadVideo } from '../controllers/video.controller.js';
+import { getVideos, uploadVideo, deleteVideo } from '../controllers/video.controller.js';
 import { upload } from '../config/cloudinary.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -18,5 +18,6 @@ const storage = multer.diskStorage({
 
 router.post('/upload', protect, upload.single('video'), uploadVideo);
 router.get('/', getVideos);
+router.delete('/:id', protect, deleteVideo);
 
 export default router;
