@@ -309,7 +309,7 @@ export default function VideoPlayer({ src, isLive, poster }) {
 
       {/* Controls bar */}
       <div
-        className={`absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${
+        className={`absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-linear-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${
           controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
@@ -330,7 +330,7 @@ export default function VideoPlayer({ src, isLive, poster }) {
           />
           {/* Progress fill */}
           <div
-            className="absolute inset-y-0 left-0 bg-violet-500 rounded-full"
+            className="absolute inset-y-0 left-0 bg-white rounded-full"
             style={{ width: `${progressPct}%` }}
           />
           {/* Scrub handle */}
