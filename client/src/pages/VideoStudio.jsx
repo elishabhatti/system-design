@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchVideos } from "../services/api";
 import { ThumbsUp, Share2, Bookmark, MoreVertical, Sparkles, Eye, Radio, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
+import VideoPlayer from "../components/VideoPlayer";
 
 export default function VideoStudio() {
   const [videos, setVideos] = useState([]);
@@ -53,24 +54,13 @@ export default function VideoStudio() {
 
         {/* Left: Player Card */}
         <div className="lg:col-span-8 xl:col-span-9">
-          <div className=" border border-zinc-800/70 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
-            {/* Player */}
-            <div className="w-full aspect-video bg-black relative">
-              <video
-                key={currentVideo.id}
-                src={currentVideo.filepath}
-                controls
-                autoPlay
-                className="w-full h-full object-contain"
-              />
-              {currentVideo.isLive && (
-                <span className="absolute top-3 left-3 flex items-center gap-1 bg-red-600 text-[10px] font-bold px-2 py-1 rounded text-white tracking-wide z-10">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  LIVE
-                </span>
-              )}
-            </div>
+            <VideoPlayer
+              key={currentVideo.id}
+              src={currentVideo.filepath}
+              isLive={currentVideo.isLive}
+            />
 
             <div className="p-5 flex flex-col gap-4">
               {/* Title */}
@@ -79,9 +69,9 @@ export default function VideoStudio() {
               </h1>
 
               {/* Channel + Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-800/70">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shadow-sm ring-2 ring-zinc-800/50">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm ring-2 ring-white/10">
                     {(currentVideo.user?.channelName || "E")[0].toUpperCase()}
                   </div>
                   <div>
@@ -90,7 +80,7 @@ export default function VideoStudio() {
                     </h3>
                     <span className="text-[11px] text-zinc-500">1.75K subscribers</span>
                   </div>
-                  <button className="ml-3 bg-violet-600 hover:bg-violet-500 text-white font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow shadow-violet-600/20">
+                  <button className="ml-3 hover:bg-gray-500 text-white font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow shadow-violet-600/20">
                     Subscribe
                   </button>
                 </div>
@@ -101,19 +91,19 @@ export default function VideoStudio() {
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition cursor-pointer ${
                       liked
                         ? 'bg-violet-600 border-violet-600 text-white'
-                        : 'bg-[#1c1c1f] border-zinc-700/60 hover:bg-[#27272a]'
+                        : 'bg-[#1c1c22] border-white/10 hover:bg-[#26233A]'
                     }`}
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
                     <span>{liked ? '28.1K' : '28K'}</span>
                   </button>
 
-                  <button className="flex items-center gap-1.5 bg-[#1c1c1f] hover:bg-[#27272a] px-3.5 py-1.5 rounded-full text-xs font-medium border border-zinc-700/60 transition cursor-pointer">
+                  <button className="flex items-center gap-1.5 bg-[#1c1c22] hover:bg-[#26233A] px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer">
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Share</span>
                   </button>
 
-                  <button className="flex items-center gap-1.5 bg-[#1c1c1f] hover:bg-[#27272a] px-3.5 py-1.5 rounded-full text-xs font-medium border border-zinc-700/60 transition cursor-pointer">
+                  <button className="flex items-center gap-1.5 bg-[#1c1c22] hover:bg-[#26233A] px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer">
                     <Bookmark className="w-3.5 h-3.5" />
                     <span>Save</span>
                   </button>
@@ -121,8 +111,8 @@ export default function VideoStudio() {
               </div>
 
               {/* Stats + Description */}
-              <div className="bg-[#0f0f11] border border-zinc-800/70 rounded-xl p-4 text-xs text-zinc-300 leading-relaxed">
-                <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-300 mb-3 pb-3 border-b border-zinc-800/60">
+              <div className="border border-white/10 rounded-xl p-4 text-xs text-zinc-300 leading-relaxed">
+                <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-300 mb-3 pb-3 border-b border-white/10">
                   <span className="flex items-center gap-1.5">
                     <Eye className="w-3.5 h-3.5 text-zinc-500" />
                     {currentVideo.views || '1.2M views'}
@@ -153,10 +143,10 @@ export default function VideoStudio() {
         {/* Right: Up Next Sidebar */}
         <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
 
-          <div className="bg-[#131316] border border-zinc-800/70 rounded-xl p-3.5 flex items-center justify-between shadow-md">
+          <div className="border border-white/10 rounded-xl p-3.5 flex items-center justify-between shadow-md">
             <div>
               <h3 className="font-bold text-xs text-zinc-100">Mix - Library Stream</h3>
-              <span className="text-[10px] text-zinc-500">Elisha Jameel • {videos.length} videos</span>
+              <span className="text-[10px] text-zinc-500">{videos.length} videos</span>
             </div>
             <Sparkles className="w-4 h-4 text-violet-400" />
           </div>
@@ -170,11 +160,11 @@ export default function VideoStudio() {
                   onClick={() => setCurrentVideo(vid)}
                   className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
                     isSelected
-                      ? 'bg-[#1c1c22] border-violet-600/50'
-                      : 'bg-[#131316] border-zinc-800/60 hover:border-zinc-700'
+                      ? 'border-violet-600/50'
+                      : 'border-white/10 hover:border-white/20'
                   }`}
                 >
-                  <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
+                  <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-white/10">
                     <video src={vid.filepath} className="w-full h-full object-cover" muted />
                     <span className="absolute bottom-1 right-1 bg-black/85 text-[9px] px-1 rounded text-zinc-200 font-mono">
                       {vid.duration || '5:31'}
