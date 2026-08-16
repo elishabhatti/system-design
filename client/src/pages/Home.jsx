@@ -181,7 +181,7 @@ export default function Home() {
 
               {/* Video Meta Info */}
               <div className="flex gap-3 items-start px-0.5">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow ring-2 ring-white/5">
+                <div className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow ring-2 ring-white/5">
                   {initialLetter}
                 </div>
 
@@ -189,7 +189,7 @@ export default function Home() {
                   <h3 className="font-semibold text-zinc-100 text-sm tracking-tight line-clamp-2 leading-snug group-hover:text-white">
                     {vid.title}
                   </h3>
-                  <span className="text-xs text-indigo-200/50 mt-1 hover:text-indigo-100 transition font-normal">
+                  <span className="text-xs text-indigo-200/40 mt-1 transition font-normal">
                     {channelName}
                   </span>
                   <div className="flex items-center gap-1.5 text-xs text-indigo-200/40 mt-0.5">
