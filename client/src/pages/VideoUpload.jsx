@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { uploadVideo } from "../services/api";
-import { CheckCircle2, Globe, Lock, Clock, UploadCloud, Radio } from 'lucide-react';
+import { CheckCircle2, Globe, Lock, Clock, UploadCloud, Radio, X, PartyPopper } from 'lucide-react';
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -48,6 +48,46 @@ function ToggleSwitch({ checked, onChange, id, children }) {
   );
 }
 
+function SuccessModal({ data, onClose, onUploadAnother }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div
+        className="bg-[#0A0A0B] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-white/40 hover:text-white transition cursor-pointer">
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="w-14 h-14 rounded-full bg-[#3DDC84]/10 border border-[#3DDC84]/30 flex items-center justify-center mx-auto mb-4">
+          <CheckCircle2 className="w-7 h-7 text-[#3DDC84]" />
+        </div>
+
+        <h2 className="text-sm font-bold text-white">Stream published</h2>
+        <p className="text-xs text-white/50 mt-1.5 leading-relaxed">
+          {data?.title || "Your asset"} has been indexed and is now in your pipeline.
+        </p>
+
+          <div className="flex flex-col gap-2 mt-6">
+            {data?.id && (
+              <a
+                className="w-full py-2.5 bg-white hover:bg-white/85 text-black rounded-xl text-xs font-bold transition text-center"
+              >
+                View video
+              </a>
+            )}
+            <button
+              onClick={onUploadAnother}
+              className="w-full py-2.5 border border-white/15 hover:border-white/30 text-white/70 hover:text-white rounded-xl text-xs font-semibold transition cursor-pointer"
+            >
+              Upload another
+            </button>
+          </div>
+      </div>
+    </div>
+  );
+}
+
 export default function VideoUpload() {
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
@@ -63,12 +103,29 @@ export default function VideoUpload() {
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [uploadedData, setUploadedData] = useState(null);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState("");
 
   const handleFile = (selectedFile) => {
     if (!selectedFile) return;
     setFile(selectedFile);
     if (!title) setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
+    setError("");
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    setTitle("");
+    setDescription("");
+    setCategory("Technology");
+    setTags("");
+    setIsMadeForKids(false);
+    setAgeRestricted(false);
+    setVisibility("private");
+    setScheduledFor("");
+    setProgress(0);
+    setUploadedData(null);
+    setShowSuccess(false);
     setError("");
   };
 
@@ -103,7 +160,12 @@ export default function VideoUpload() {
         setProgress(percentCompleted);
       });
 
+      // Hold at 100% briefly so the bar is visible even on fast/local uploads
+      setProgress(100);
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
       setUploadedData(data);
+      setShowSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || "Upload failed. Try again.");
     } finally {
@@ -293,7 +355,7 @@ export default function VideoUpload() {
               {loading ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-black animate-pulse" />
-                  PUBLISHING · {progress}%
+                  {progress < 100 ? `PUBLISHING · ${progress}%` : "FINALIZING..."}
                 </>
               ) : (
                 <>
@@ -314,21 +376,18 @@ export default function VideoUpload() {
                 ))}
               </div>
             )}
-
-            {uploadedData && (
-              <div className="p-3.5 bg-[#3DDC84]/5 border border-[#3DDC84]/25 rounded-xl">
-                <h3 className="text-xs font-bold text-[#3DDC84] mb-2 flex items-center gap-1.5" style={MONO}>
-                  <CheckCircle2 className="w-4 h-4" /> INDEXED
-                </h3>
-                <pre className="text-[10px] text-[#3DDC84]/80 overflow-x-auto bg-black/40 p-3 rounded-lg" style={MONO}>
-                  {JSON.stringify(uploadedData, null, 2)}
-                </pre>
-              </div>
-            )}
           </div>
         </div>
 
       </form>
+
+      {showSuccess && (
+        <SuccessModal
+          data={uploadedData}
+          onClose={() => setShowSuccess(false)}
+          onUploadAnother={resetForm}
+        />
+      )}
     </div>
   );
 }

@@ -1,265 +1,198 @@
-import React, { useState } from "react";
-import { uploadVideo } from "../services/api";
-import { Sparkles, CheckCircle2, Globe, Lock, Clock } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { fetchVideos } from "../services/api";
+import { ThumbsUp, Share2, Bookmark, MoreVertical, Sparkles, Eye, Radio, Clock } from "lucide-react";
+import Navbar from "../components/Navbar";
+import VideoPlayer from "../components/VideoPlayer";
 
-export default function VideoUpload() {
-  const [file, setFile] = useState(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Technology");
-  const [tags, setTags] = useState("");
-  const [isMadeForKids, setIsMadeForKids] = useState(false);
-  const [ageRestricted, setAgeRestricted] = useState(false);
-  const [visibility, setVisibility] = useState("private");
-  const [scheduledFor, setScheduledFor] = useState("");
+export default function VideoDetail() {
+  const [videos, setVideos] = useState([]);
+  const [currentVideo, setCurrentVideo] = useState(null);
+  const [loadingVideos, setLoadingVideos] = useState(true);
+  const [liked, setLiked] = useState(false);
 
-  const [progress, setProgress] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [uploadedData, setUploadedData] = useState(null);
-  const [error, setError] = useState("");
+  useEffect(() => {
+    loadVideos();
+  }, []);
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    setFile(selectedFile);
-    if (selectedFile && !title) {
-      setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
-    }
-    setError("");
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!file) {
-      setError("Please select a video file.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("video", file);
-    formData.append("title", title || file.name);
-    formData.append("description", description);
-    formData.append("category", category);
-    formData.append("tags", tags);
-    formData.append("isMadeForKids", isMadeForKids);
-    formData.append("ageRestricted", ageRestricted);
-    formData.append("visibility", visibility);
-    if (visibility === 'schedule' && scheduledFor) {
-      formData.append("scheduledFor", scheduledFor);
-    }
-
+  const loadVideos = async () => {
     try {
-      setLoading(true);
-      setProgress(0);
-      setError("");
-      setUploadedData(null);
-
-      const data = await uploadVideo(formData, (progressEvent) => {
-        const percentCompleted = Math.round(
-          (progressEvent.loaded * 100) / progressEvent.total,
-        );
-        setProgress(percentCompleted);
-      });
-
-      setUploadedData(data);
+      const data = await fetchVideos();
+      if (data && data.length > 0) {
+        setVideos(data);
+        setCurrentVideo(data[0]);
+      }
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to upload video.");
+      console.error("Failed to load videos", err);
     } finally {
-      setLoading(false);
+      setLoadingVideos(false);
     }
   };
+
+  if (loadingVideos) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[75vh]">
+        <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-zinc-400 mt-3 font-mono">Loading player...</p>
+      </div>
+    );
+  }
+
+  if (!currentVideo) {
+    return (
+      <div className="text-center py-20 text-zinc-400 text-xs">
+        No videos available in your library.
+      </div>
+    );
+  }
+
+  const sidebarVideos = videos.filter((v) => v.id !== currentVideo.id);
 
   return (
-    <div className="max-w-3xl mx-auto my-8 p-8 border border-white/10 rounded-2xl font-sans text-zinc-100 shadow-2xl">
-      <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-        <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-400" /> Studio Video Upload Pipeline
-          </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">Configure full stream metadata, visibility, and audience settings.</p>
-        </div>
-      </div>
+    <>
+      <Navbar />
+      <div className="max-w-full mx-auto px-4 lg:px-8 py-6 text-zinc-100 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* Step 1: File Selection */}
-        <div className="p-4 border border-white/10 rounded-xl">
-          <label className="block mb-2 text-xs font-semibold text-zinc-300">
-            Select Video Asset
-          </label>
-          <input
-            type="file"
-            accept="video/*"
-            onChange={handleFileChange}
-            className="w-full text-xs text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-violet-600 file:text-white hover:file:bg-violet-500 cursor-pointer transition"
-          />
-          {file && <span className="block mt-2 text-[11px] text-emerald-400 font-mono">Selected: {file.name}</span>}
-        </div>
+        {/* Left: Player Card */}
+        <div className="lg:col-span-8 xl:col-span-9">
+          <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
-        {/* Step 2: Details (Title & Description) */}
-        <div className="grid grid-cols-1 gap-4">
-          <div>
-            <label className="block mb-1.5 text-xs font-medium text-zinc-400">Title (required)</label>
-            <input
-              type="text"
-              required
-              placeholder="Add a title that describes your video"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl text-xs text-zinc-100 outline-none focus:border-violet-500 transition"
+            <VideoPlayer
+              key={currentVideo.id}
+              src={currentVideo.filepath}
+              isLive={currentVideo.isLive}
             />
-          </div>
 
-          <div>
-            <label className="block mb-1.5 text-xs font-medium text-zinc-400">Description</label>
-            <textarea
-              rows={3}
-              placeholder="Tell viewers about your video stream..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl text-xs text-zinc-100 outline-none focus:border-violet-500 transition resize-none"
-            />
-          </div>
-        </div>
+            <div className="p-5 flex flex-col gap-4">
+              {/* Title */}
+              <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-snug">
+                {currentVideo.title}
+              </h1>
 
-        {/* Step 3: Category & Tags */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block mb-1.5 text-xs font-medium text-zinc-400">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl text-xs text-zinc-100 outline-none focus:border-violet-500 transition cursor-pointer"
-            >
-              <option value="Technology">Technology & Code</option>
-              <option value="System Architecture">System Architecture</option>
-              <option value="Music">Music & Beats</option>
-              <option value="Gaming">Gaming</option>
-              <option value="Education">Education</option>
-            </select>
-          </div>
+              {/* Channel + Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm ring-2 ring-white/10">
+                    {(currentVideo.user?.channelName || "E")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-xs text-zinc-200">
+                      {currentVideo.user?.channelName || "Elisha Jameel"}
+                    </h3>
+                    <span className="text-[11px] text-zinc-500">1.75K subscribers</span>
+                  </div>
+                  <button className="ml-3 hover:bg-gray-500 text-white font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow shadow-violet-600/20">
+                    Subscribe
+                  </button>
+                </div>
 
-          <div>
-            <label className="block mb-1.5 text-xs font-medium text-zinc-400">Tags (comma separated)</label>
-            <input
-              type="text"
-              placeholder="react, node, streaming, hls"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl text-xs text-zinc-100 outline-none focus:border-violet-500 transition"
-            />
-          </div>
-        </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setLiked(!liked)}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition cursor-pointer ${
+                      liked
+                        ? 'bg-violet-600 border-violet-600 text-white'
+                        : 'bg-[#1c1c22] border-white/10 hover:bg-[#26233A]'
+                    }`}
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" />
+                    <span>{liked ? '28.1K' : '28K'}</span>
+                  </button>
 
-        {/* Step 4: Audience & Age Restriction */}
-        <div className="p-4 border border-white/10 rounded-xl space-y-3">
-          <h3 className="text-xs font-semibold text-zinc-300">Audience & Restrictions</h3>
-          
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="kids"
-              checked={isMadeForKids}
-              onChange={(e) => setIsMadeForKids(e.target.checked)}
-              className="w-4 h-4 rounded border-white/10 bg-transparent text-violet-600 focus:ring-0 cursor-pointer"
-            />
-            <label htmlFor="kids" className="text-xs text-zinc-300 cursor-pointer">
-              Yes, it's made for kids
-            </label>
-          </div>
+                  <button className="flex items-center gap-1.5 bg-[#1c1c22] hover:bg-[#26233A] px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer">
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Share</span>
+                  </button>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="age"
-              checked={ageRestricted}
-              onChange={(e) => setAgeRestricted(e.target.checked)}
-              className="w-4 h-4 rounded border-white/10 bg-transparent text-violet-600 focus:ring-0 cursor-pointer"
-            />
-            <label htmlFor="age" className="text-xs text-zinc-300 cursor-pointer">
-              Age restriction: Do not restrict my video to viewers over 18 only
-            </label>
-          </div>
-        </div>
+                  <button className="flex items-center gap-1.5 bg-[#1c1c22] hover:bg-[#26233A] px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer">
+                    <Bookmark className="w-3.5 h-3.5" />
+                    <span>Save</span>
+                  </button>
+                </div>
+              </div>
 
-        {/* Step 5: Visibility & Schedule */}
-        <div className="p-4 border border-white/10 rounded-xl space-y-3">
-          <h3 className="text-xs font-semibold text-zinc-300">Save or Publish (Visibility)</h3>
-          
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => setVisibility("private")}
-              className={`p-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer ${
-                visibility === 'private' ? 'bg-violet-600/20 border-violet-500 text-violet-300' : 'border-white/10 text-zinc-400'
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" /> Private
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setVisibility("public")}
-              className={`p-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer ${
-                visibility === 'public' ? 'bg-violet-600/20 border-violet-500 text-violet-300' : 'border-white/10 text-zinc-400'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5" /> Public
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setVisibility("schedule")}
-              className={`p-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer ${
-                visibility === 'schedule' ? 'bg-violet-600/20 border-violet-500 text-violet-300' : 'border-white/10 text-zinc-400'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" /> Schedule
-            </button>
-          </div>
-
-          {visibility === 'schedule' && (
-            <div className="mt-3">
-              <label className="block mb-1 text-[11px] text-zinc-400">Select Date and Time</label>
-              <input
-                type="datetime-local"
-                value={scheduledFor}
-                onChange={(e) => setScheduledFor(e.target.value)}
-                className="w-full p-2.5 border border-white/10 rounded-xl text-xs text-zinc-100 outline-none focus:border-violet-500"
-              />
+              {/* Stats + Description */}
+              <div className="border border-white/10 rounded-xl p-4 text-xs text-zinc-300 leading-relaxed">
+                <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-300 mb-3 pb-3 border-b border-white/10">
+                  <span className="flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-zinc-500" />
+                    {currentVideo.views || '1.2M views'}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
+                    28K likes
+                  </span>
+                  {currentVideo.isLive && (
+                    <span className="flex items-center gap-1.5 text-red-400">
+                      <Radio className="w-3.5 h-3.5" />
+                      1.9M streaming
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-zinc-500" />
+                    {currentVideo.uploadedAt ? new Date(currentVideo.uploadedAt).toLocaleDateString() : 'Aug 15, 2026'}
+                  </span>
+                </div>
+                <p className="text-zinc-400">
+                  {currentVideo.description || "Enjoy this immersive media stream configured directly from your library feed."}
+                </p>
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
-        {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">{error}</div>}
+        {/* Right: Up Next Sidebar */}
+        <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-3.5 px-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold disabled:opacity-50 cursor-pointer transition shadow-lg shadow-violet-500/20"
-        >
-          {loading ? `Processing & Uploading... ${progress}%` : "Publish Stream Asset"}
-        </button>
-      </form>
+          <div className="border border-white/10 rounded-xl p-3.5 flex items-center justify-between shadow-md">
+            <div>
+              <h3 className="font-bold text-xs text-zinc-100">Mix - Library Stream</h3>
+              <span className="text-[10px] text-zinc-500">{videos.length} videos</span>
+            </div>
+            <Sparkles className="w-4 h-4 text-violet-400" />
+          </div>
 
-      {loading && (
-        <div className="w-full h-1.5 border border-white/10 rounded-full mt-4 overflow-hidden">
-          <div
-            className="h-full bg-violet-500 transition-all duration-200"
-            style={{ width: `${progress}%` }}
-          ></div>
+          <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin scrollbar-thumb-zinc-700">
+            {sidebarVideos.map((vid, idx) => {
+              const isSelected = currentVideo.id === vid.id;
+              return (
+                <div
+                  key={vid.id}
+                  onClick={() => setCurrentVideo(vid)}
+                  className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
+                    isSelected
+                      ? 'border-violet-600/50'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-white/10">
+                    <video src={vid.filepath} className="w-full h-full object-cover" muted />
+                    <span className="absolute bottom-1 right-1 bg-black/85 text-[9px] px-1 rounded text-zinc-200 font-mono">
+                      {vid.duration || '5:31'}
+                    </span>
+                    {vid.isLive && (
+                      <span className="absolute top-1 left-1 bg-red-600 text-[8px] font-bold px-1 rounded text-white">
+                        LIVE
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col overflow-hidden w-full">
+                    <span className="text-[10px] font-mono text-zinc-600 mb-0.5">#{idx + 1} in queue</span>
+                    <h4 className={`font-semibold text-xs truncate ${isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'}`}>
+                      {vid.title}
+                    </h4>
+                    <span className="text-[11px] text-zinc-500 truncate mt-0.5">
+                      {vid.user?.channelName || "Elisha Jameel"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
         </div>
-      )}
 
-      {uploadedData && (
-        <div className="mt-6 p-4 bg-emerald-950/40 border border-emerald-800/60 rounded-xl">
-          <h3 className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" /> Video Metadata Indexed Successfully!
-          </h3>
-          <pre className="text-[10px] text-emerald-300 overflow-x-auto bg-black/40 p-3 rounded-lg font-mono">
-            {JSON.stringify(uploadedData, null, 2)}
-          </pre>
-        </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
