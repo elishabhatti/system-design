@@ -122,7 +122,7 @@ export default function Home() {
     <div className="px-6 py-4 text-zinc-100 max-w-[1800px] mx-auto">
 
       {/* Filter Chips Bar */}
-      <div className="flex items-center gap-2.5 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0 bg-[#1F1D2C] z-20">
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0  z-20">
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isActive = activeCategory === cat.name;
@@ -132,8 +132,8 @@ export default function Home() {
               onClick={() => setActiveCategory(cat.name)}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-violet-600 text-white font-semibold shadow-lg shadow-violet-600/25'
-                  : 'bg-[#2A2740] text-zinc-300 hover:bg-[#332F4D] border border-white/5'
+                  ? ' text-white font-semibold shadow-lg '
+                  : 'text-zinc-300 border border-white/5'
               }`}
             >
               <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />

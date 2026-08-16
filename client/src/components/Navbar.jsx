@@ -26,7 +26,7 @@ export default function Navbar() {
 
       {/* Center: Search Bar with Capsule Design & Mic */}
       <div className="hidden md:flex items-center justify-center flex-1 max-w-2xl px-6">
-        <div className="flex items-center w-full bg-[#26233A] border border-white/10 hover:border-white/20 focus-within:border-violet-500 rounded-full overflow-hidden transition shadow-inner">
+        <div className="flex items-center w-full  border border-white/10 hover:border-white/20 rounded-full overflow-hidden transition shadow-inner">
           <input 
             type="text" 
             placeholder="Search" 
@@ -45,7 +45,7 @@ export default function Navbar() {
       <div className="flex items-center gap-3">
         <Link 
           to="/create" 
-          className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-violet-600 hover:bg-violet-500 border border-violet-500/40 text-white rounded-full text-xs font-semibold shadow-sm shadow-violet-600/25 transition"
+          className="hidden sm:flex items-center gap-2 px-3.5 py-2  border border-gray-800 text-white rounded-full text-xs font-semibold shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
           <span>Create</span>
@@ -56,12 +56,12 @@ export default function Navbar() {
           title="Notifications"
         >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-violet-500 rounded-full shadow-md shadow-violet-500/50"></span>
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-white rounded-full shadow-md shadow-violet-500/50"></span>
         </button>
 
         <Link 
           to="/profile" 
-          className="w-8 h-8 rounded-full border border-violet-500/40 bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center font-bold text-xs text-white shadow-md hover:scale-105 transition-transform"
+          className="w-8 h-8 rounded-full border border-violet-500/40 bg-black flex items-center justify-center font-bold text-xs text-white shadow-md hover:scale-105 transition-transform"
         >
           EJ
         </Link>
