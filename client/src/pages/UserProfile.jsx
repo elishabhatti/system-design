@@ -51,7 +51,7 @@ export default function UserProfile() {
   };
 
   return (
-    <div className="min-h-screen text-zinc-100  selection:bg-violet-500 selection:text-white">
+    <div className="min-h-[95vh] text-zinc-100  selection:bg-violet-500 selection:text-white">
       <div className="h-44  border-b border-white/10 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-violet-500/10 via-transparent to-transparent"></div>
       </div>

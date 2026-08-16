@@ -8,9 +8,10 @@ import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import VideoStudio from './pages/VideoStudio';
+import VideoDetail from './pages/VideoDetail';
 import VideoUpload from './pages/VideoUpload';
 import UserProfile from './pages/UserProfile';
+import { Video } from 'lucide-react';
 
 function LayoutWithSidebar() {
   return (
@@ -34,7 +35,7 @@ export default function App() {
           <Routes>
             {/* Protected Routes (Sirf logged-in users ke liye) */}
             <Route element={<ProtectedRoute />}>
-                <Route path="/watch/:id" element={<VideoStudio />} />
+                <Route path="/watch/:id" element={<VideoDetail />} />
               <Route element={<LayoutWithSidebar />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/create" element={<VideoUpload />} />

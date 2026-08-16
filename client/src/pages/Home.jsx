@@ -153,10 +153,10 @@ export default function Home() {
             <Link
               to={`/watch/${vid.id}`}
               key={vid.id}
-              className="group flex flex-col gap-3 cursor-pointer p-2 rounded-2xl border border-transparent hover:border-white/10 hover:bg-[#26233A] transition-all duration-200"
+              className="group flex flex-col gap-3 cursor-pointer p-2 rounded-2xl border border-transparent hover:border-white/10 hover:bg-[#27272A] transition-all duration-200"
             >
               {/* Thumbnail Container */}
-              <div className="aspect-video bg-[#26233A] rounded-xl overflow-hidden relative shadow-md border border-white/5">
+              <div className="aspect-video rounded-xl overflow-hidden relative shadow-md border border-white/5">
                 <video
                   src={vid.filepath}
                   className="w-full h-full object-cover scale-100 group-hover:scale-105 transition-transform duration-300"
@@ -174,7 +174,7 @@ export default function Home() {
                   </span>
                 ) : (
                   <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-[11px] font-medium px-1.5 py-0.5 rounded text-white">
-                    12:45
+                    12:32
                   </span>
                 )}
               </div>
