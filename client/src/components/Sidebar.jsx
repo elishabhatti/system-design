@@ -65,7 +65,7 @@ export default function Sidebar() {
   // Collapsed Sidebar View (Mini Sidebar)
   if (!isSidebarOpen) {
     return (
-      <aside className="w-[72px] bg-[#0f0f0f] text-zinc-100 flex-col items-center py-2 sticky top-14 h-[calc(100vh-3.5rem)] hidden md:flex shrink-0 z-10">
+      <aside className="w-18 text-zinc-100 flex-col items-center py-2 sticky top-14 h-[calc(100vh-3.5rem)] hidden md:flex shrink-0 z-10">
         <div className="flex flex-col w-full gap-1">
           {mainLinks.map((link) => {
             const Icon = link.icon;
@@ -106,7 +106,7 @@ export default function Sidebar() {
 
   // Expanded Sidebar View (Full YouTube Style)
   return (
-    <aside className="w-[240px] bg-[#0f0f0f] text-zinc-100 flex-col p-3 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden hidden md:flex shrink-0 z-10 hover:scrollbar-thumb-[#717171] scrollbar-thin scrollbar-thumb-transparent scrollbar-track-transparent pr-2 transition-all">
+    <aside className="w-[240px] text-zinc-100 flex-col p-3 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden hidden md:flex shrink-0 z-10 hover:scrollbar-thumb-[#717171] scrollbar-thin scrollbar-thumb-transparent scrollbar-track-transparent pr-2 transition-all">
       
       {/* Main Section */}
       <div className="pb-3 border-b border-zinc-800/80">

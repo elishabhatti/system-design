@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, Flame, Music, Gamepad2, Laptop, GraduationCap, Smile, Radio, Film, Tv, Headphones, Zap, Code2, BrainCircuit, MoreVertical } from 'lucide-react';
+import { Sparkles, Flame, Music, Gamepad2, Laptop, GraduationCap, Smile, Radio, Film, Tv, Headphones, Zap, Code2, BrainCircuit, MoreVertical, Eye } from 'lucide-react';
 
 const categories = [
   { name: "All", icon: Sparkles },
@@ -19,7 +19,6 @@ const categories = [
   { name: "Thoughts", icon: BrainCircuit },
 ];
 
-// YouTube Style Rich Dummy Videos for Grid Testing
 const dummyVideos = [
   {
     id: '1',
@@ -27,6 +26,7 @@ const dummyVideos = [
     filepath: 'https://assets.mixkit.co/videos/preview/mixkit-coding-on-a-computer-screen-4309-large.mp4',
     views: '5.2M views',
     uploadedAt: '2026-07-15T10:00:00Z',
+    isLive: false,
     user: { channelName: 'Taarak Mehta Ka Ooltah Chashmah' }
   },
   {
@@ -35,6 +35,7 @@ const dummyVideos = [
     filepath: 'https://assets.mixkit.co/videos/preview/mixkit-hands-typing-on-a-laptop-keyboard-4308-large.mp4',
     views: '135K views',
     uploadedAt: '2026-05-10T14:30:00Z',
+    isLive: true,
     user: { channelName: 'Rafael Rudolph' }
   },
   {
@@ -43,6 +44,7 @@ const dummyVideos = [
     filepath: 'https://assets.mixkit.co/videos/preview/mixkit-programmer-working-late-at-night-4311-large.mp4',
     views: '840K views',
     uploadedAt: '2026-08-01T08:15:00Z',
+    isLive: false,
     user: { channelName: 'Sayfalse, NulteeX, QMIR, and more' }
   },
   {
@@ -51,17 +53,9 @@ const dummyVideos = [
     filepath: 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31910-large.mp4',
     views: '639 views',
     uploadedAt: '2026-08-14T19:45:00Z',
+    isLive: false,
     user: { channelName: 'Synth Vibes' }
   }
-];
-
-// YouTube Style Shorts Data
-const dummyShorts = [
-  { id: 's1', title: 'Jason (Robin) never kept his promise...', views: '2.9M views', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-hands-typing-on-a-laptop-keyboard-4308-large.mp4' },
-  { id: 's2', title: 'Grow Triceps with Dumbbells Only (Fully Explained)', views: '5.8M views', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-coding-on-a-computer-screen-4309-large.mp4' },
-  { id: 's3', title: '5 Books That Quietly Changed Everything in My Life', views: '300K views', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-programmer-working-late-at-night-4311-large.mp4' },
-  { id: 's4', title: 'Built by Anime Character 🔥 [Tokyo Revengers]', views: '22K views', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31910-large.mp4' },
-  { id: 's5', title: '100% accurate! The secret behind its power...', views: '2M views', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-coding-on-a-computer-screen-4309-large.mp4' },
 ];
 
 const timeAgo = (dateString) => {
@@ -118,17 +112,17 @@ export default function Home() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh]">
-        <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-zinc-400 mt-3 font-medium">Loading...</p>
+        <div className="w-5 h-5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-indigo-200/60 mt-3 font-medium">Loading...</p>
       </div>
     );
   }
 
   return (
     <div className="px-6 py-4 text-zinc-100 max-w-[1800px] mx-auto">
-        
-      {/* YouTube Style Filter Chips Bar */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0 bg-[#0f0f0f] z-20">
+
+      {/* Filter Chips Bar */}
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0 bg-[#1F1D2C] z-20">
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isActive = activeCategory === cat.name;
@@ -136,13 +130,13 @@ export default function Home() {
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                isActive 
-                  ? 'bg-white text-zinc-950 font-semibold' 
-                  : 'bg-[#27272a] text-zinc-200 hover:bg-[#3f3f46]'
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-violet-600 text-white font-semibold shadow-lg shadow-violet-600/25'
+                  : 'bg-[#2A2740] text-zinc-300 hover:bg-[#332F4D] border border-white/5'
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-zinc-950' : 'text-zinc-300'}`} />
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
               {cat.name}
             </button>
           );
@@ -150,58 +144,65 @@ export default function Home() {
       </div>
 
       {/* Main Video Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-y sm:gap-y-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {videos.map((vid) => {
           const channelName = vid.user?.channelName || "Elisha Jameel";
           const initialLetter = channelName[0].toUpperCase();
 
           return (
-            <Link 
-              to={`/watch/${vid.id}`} 
-              key={vid.id} 
-              className="group flex flex-col gap-3 cursor-pointer"
+            <Link
+              to={`/watch/${vid.id}`}
+              key={vid.id}
+              className="group flex flex-col gap-3 cursor-pointer p-2 rounded-2xl border border-transparent hover:border-white/10 hover:bg-[#26233A] transition-all duration-200"
             >
               {/* Thumbnail Container */}
-              <div className="aspect-video bg-[#1f1f1f] rounded-xl overflow-hidden relative shadow-md">
-                <video 
-                  src={vid.filepath} 
-                  className="w-full h-full object-cover group-hover:rounded-none transition-all duration-200" 
-                  muted 
+              <div className="aspect-video bg-[#26233A] rounded-xl overflow-hidden relative shadow-md border border-white/5">
+                <video
+                  src={vid.filepath}
+                  className="w-full h-full object-cover scale-100 group-hover:scale-105 transition-transform duration-300"
+                  muted
                   loop
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
                   onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                 />
-                <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-[11px] font-medium px-1 rounded text-white">
-                  12:45
-                </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+
+                {vid.isLive ? (
+                  <span className="absolute top-2 left-2 flex items-center gap-1 bg-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded text-white tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    LIVE
+                  </span>
+                ) : (
+                  <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-[11px] font-medium px-1.5 py-0.5 rounded text-white">
+                    12:45
+                  </span>
+                )}
               </div>
 
               {/* Video Meta Info */}
               <div className="flex gap-3 items-start px-0.5">
-                {/* Channel Avatar */}
-                <div className="w-9 h-9 rounded-full bg-linear-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow ring-2 ring-white/5">
                   {initialLetter}
                 </div>
 
-                {/* Title & Details */}
                 <div className="flex flex-col overflow-hidden w-full">
                   <h3 className="font-semibold text-zinc-100 text-sm tracking-tight line-clamp-2 leading-snug group-hover:text-white">
                     {vid.title}
                   </h3>
-                  <span className="text-xs text-zinc-400 mt-1 hover:text-zinc-200 transition font-normal">
+                  <span className="text-xs text-indigo-200/50 mt-1 hover:text-indigo-100 transition font-normal">
                     {channelName}
                   </span>
-                  <div className="flex items-center gap-1 text-xs text-zinc-400 mt-0.5">
+                  <div className="flex items-center gap-1.5 text-xs text-indigo-200/40 mt-0.5">
+                    <Eye className="w-3 h-3" />
                     <span>{vid.views || '12K views'}</span>
                     <span>•</span>
                     <span>{timeAgo(vid.uploadedAt || new Date())}</span>
                   </div>
                 </div>
 
-                {/* Options Menu Button */}
-                <button 
-                  onClick={(e) => { e.preventDefault(); }} 
-                  className="text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100 transition p-1"
+                <button
+                  onClick={(e) => { e.preventDefault(); }}
+                  className="text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition p-1"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>

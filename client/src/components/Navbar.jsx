@@ -20,7 +20,7 @@ export default function Navbar() {
         </button>
 
         <Link to="/" className="flex items-center gap-2.5 group">
-          <span className="font-bold text-sm tracking-tight text-white">Orbit</span>
+          <span className="text-xl tracking-tight text-white">Orbit</span>
         </Link>
       </div>
 
