@@ -126,7 +126,7 @@ export default function Home() {
 
   return (
     <div className="px-6 py-4 text-zinc-100 max-w-[1800px] mx-auto">
-      
+        
       {/* YouTube Style Filter Chips Bar */}
       <div className="flex items-center gap-3 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0 bg-[#0f0f0f] z-20">
         {categories.map((cat) => {
@@ -179,7 +179,7 @@ export default function Home() {
               {/* Video Meta Info */}
               <div className="flex gap-3 items-start px-0.5">
                 {/* Channel Avatar */}
-                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow">
+                <div className="w-9 h-9 rounded-full bg-linear-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow">
                   {initialLetter}
                 </div>
 
@@ -209,41 +209,6 @@ export default function Home() {
             </Link>
           );
         })}
-      </div>
-
-      {/* YouTube Style Shorts Section */}
-      <div className="mt-14 pt-8 border-t border-zinc-800/80">
-        <div className="flex items-center justify-between mb-5 px-1">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
-              <path d="M17.77 10.32l-8.5-5.2A1 1 0 0 0 7.8 6v12a1 1 0 0 0 1.47.88l8.5-5.2a1 1 0 0 0 0-1.76z"/>
-            </svg>
-            <h2 className="text-lg font-bold text-white tracking-tight">Shorts</h2>
-          </div>
-        </div>
-
-        {/* Shorts Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {dummyShorts.map((short) => (
-            <div key={short.id} className="group flex flex-col gap-2 cursor-pointer">
-              <div className="aspect-9/16 bg-[#1f1f1f] rounded-xl overflow-hidden relative shadow-lg">
-                <video 
-                  src={short.videoUrl} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  muted
-                  loop
-                  onMouseEnter={(e) => e.target.play().catch(() => {})}
-                  onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
-                />
-                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-70"></div>
-                <div className="absolute bottom-3 left-3 right-3 flex flex-col">
-                  <span className="text-xs font-semibold text-white line-clamp-2 leading-snug">{short.title}</span>
-                  <span className="text-[11px] text-zinc-300 mt-1">{short.views}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
     </div>

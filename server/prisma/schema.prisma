@@ -1,5 +1,3 @@
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,27 +8,36 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  channelName  String   
-  email        String   @unique
-  password     String   // Hashed password (bcrypt)
-  avatarUrl    String?  // Optional profile picture / logo
-  bio          String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(uuid())
+  channelName String   
+  email       String   @unique
+  password    String   // Hashed password (bcrypt)
+  avatarUrl   String?  // Optional profile picture / logo
+  bio         String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
-  videos       Video[]  // Relation: Ek user ke multiple videos
+  videos      Video[]  // Relation: Ek user ke multiple videos
 }
 
 model Video {
-  id         String   @id @default(uuid())
-  title      String
-  filename   String
-  filepath   String
-  filesize   Int
-  mimetype   String
-  uploadedAt DateTime @default(now())
+  id            String    @id @default(uuid())
+  title         String
+  description   String?   @db.Text
+  filename      String
+  filepath      String
+  filesize      Int
+  mimetype      String
+  thumbnailUrl  String?
+  category      String?   @default("General")
+  tags          String?   // Comma separated tags or JSON
+  isMadeForKids Boolean   @default(false)
+  ageRestricted Boolean   @default(false)
+  visibility    String    @default("private") // public, private, schedule
+  scheduledFor  DateTime?
+  views         Int       @default(0)
+  uploadedAt    DateTime  @default(now())
 
-  userId     String   // Foreign Key
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade) // Opposite relation field
+  userId        String    // Foreign Key
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
