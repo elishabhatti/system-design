@@ -59,12 +59,11 @@ export default function Home() {
           if (data && data.length > 0) {
             setVideos(data);
           } else {
-            setVideos(dummyVideos);
+            setVideos(videos);
           }
         })
         .catch((err) => {
           console.warn("API error, loading dummy YouTube feed.", err);
-          setVideos(dummyVideos);
         })
         .finally(() => setLoading(false));
     });
