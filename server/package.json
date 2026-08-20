@@ -4,6 +4,7 @@
     "description": "",
     "main": "src/main.js",
     "scripts": {
+        "dev:cluster": "concurrently \"PORT=3000 node --env-file=.env src/main.js\" \"PORT=3001 node --env-file=.env src/main.js\"",
         "test": "echo \"Error: no test specified\" && exit 1",
         "dev": "node --watch --env-file=.env src/main.js",
         "start": "node --env-file=.env src/main.js"
@@ -29,6 +30,7 @@
         "@types/bcryptjs": "^2.4.6",
         "@types/cookie-parser": "^1.4.10",
         "@types/jsonwebtoken": "^9.0.10",
+        "concurrently": "^10.0.5",
         "nodemon": "^3.1.14"
     }
 }
