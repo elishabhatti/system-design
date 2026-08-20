@@ -19,45 +19,6 @@ const categories = [
   { name: "Thoughts", icon: BrainCircuit },
 ];
 
-const dummyVideos = [
-  {
-    id: '1',
-    title: 'Jethalal Ne Chalaya Apna Shaitir Dimag! | FULL MOVIE | Taarak Mehta Ka Ooltah Chashmah',
-    filepath: 'https://assets.mixkit.co/videos/preview/mixkit-coding-on-a-computer-screen-4309-large.mp4',
-    views: '5.2M views',
-    uploadedAt: '2026-07-15T10:00:00Z',
-    isLive: false,
-    user: { channelName: 'Taarak Mehta Ka Ooltah Chashmah' }
-  },
-  {
-    id: '2',
-    title: 'Nightwing Fight Scenes - DCAMU | Cinematic Compilation & Action Breakdown',
-    filepath: 'https://assets.mixkit.co/videos/preview/mixkit-hands-typing-on-a-laptop-keyboard-4308-large.mp4',
-    views: '135K views',
-    uploadedAt: '2026-05-10T14:30:00Z',
-    isLive: true,
-    user: { channelName: 'Rafael Rudolph' }
-  },
-  {
-    id: '3',
-    title: 'Mix - AL NACER {Slowed + Reverb} | Bugatti Chiron Track Day Edition',
-    filepath: 'https://assets.mixkit.co/videos/preview/mixkit-programmer-working-late-at-night-4311-large.mp4',
-    views: '840K views',
-    uploadedAt: '2026-08-01T08:15:00Z',
-    isLive: false,
-    user: { channelName: 'Sayfalse, NulteeX, QMIR, and more' }
-  },
-  {
-    id: '4',
-    title: 'Sam - Henson (PERFECT SPEEDUP + REVERB) Slowed | Atmospheric Synthwave Experience',
-    filepath: 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31910-large.mp4',
-    views: '639 views',
-    uploadedAt: '2026-08-14T19:45:00Z',
-    isLive: false,
-    user: { channelName: 'Synth Vibes' }
-  }
-];
-
 const timeAgo = (dateString) => {
   const date = new Date(dateString);
   const now = new Date();

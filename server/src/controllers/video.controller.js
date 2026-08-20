@@ -51,7 +51,8 @@ export const getVideos = async (req, res) => {
       include: { user: true },
       orderBy: { uploadedAt: 'desc' }
     });
-    return res.status(200).json(videos);
+    return res.status(200).json({ videos });
+    console.log(`🔥 Request received on Server Port: ${process.env.PORT || 3000}`);
   } catch (error) {
     console.error('Error fetching videos:', error);
     return res.status(500).json({ error: error.message });
