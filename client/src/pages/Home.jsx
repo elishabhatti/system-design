@@ -55,20 +55,25 @@ export default function Home() {
   useEffect(() => {
     import('../services/api').then(({ fetchVideos }) => {
       fetchVideos()
-        .then((data) => {
-          if (data && data.length > 0) {
-            setVideos(data);
+        .then((response) => {
+          console.log("Fetched response:", response);
+          
+          if (response && response.videos && response.videos.length > 0) {
+            console.log(`🚀 Yeh request serve ki hai port:`, response.servedByPort);
+            setVideos(response.videos);
+          } else if (Array.isArray(response)) {
+            setVideos(response);
           } else {
-            setVideos(videos);
+            setVideos(dummyVideos);
           }
         })
         .catch((err) => {
           console.warn("API error, loading dummy YouTube feed.", err);
+          setVideos(dummyVideos);
         })
         .finally(() => setLoading(false));
     });
   }, []);
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh]">

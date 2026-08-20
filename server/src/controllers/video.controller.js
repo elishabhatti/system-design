@@ -47,18 +47,24 @@ export const uploadVideo = async (req, res) => {
 
 export const getVideos = async (req, res) => {
   try {
+    const currentPort = process.env.PORT || 3000;
+    console.log(`🔥 Request received on Server Port: ${currentPort}`);
+
     const videos = await prisma.video.findMany({
       include: { user: true },
       orderBy: { uploadedAt: 'desc' }
     });
-    return res.status(200).json({ videos });
-    console.log(`🔥 Request received on Server Port: ${process.env.PORT || 3000}`);
+
+    return res.status(200).json({ 
+      videos,
+      success: true,
+      servedByPort: currentPort,
+    });
   } catch (error) {
     console.error('Error fetching videos:', error);
     return res.status(500).json({ error: error.message });
   }
 };
-
 export const deleteVideo = async (req, res) => {
   try {
     const videoId = parseInt(req.params.id, 10);
