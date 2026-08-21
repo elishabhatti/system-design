@@ -92,3 +92,20 @@ export const deleteVideo = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+export const incrementVideoView = async (req, res) => {
+  try {
+    const videoId = req.params.id;
+    
+    const viewsCount = await redis.incr(`video:views:${videoId}`);
+
+    return res.status(200).json({
+      success: true,
+      message: "View counted successfully in Redis!",
+      views: viewsCount
+    });
+  } catch (error) {
+    console.error("Error incrementing view:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
