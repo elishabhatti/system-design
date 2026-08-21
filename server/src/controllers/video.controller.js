@@ -1,4 +1,5 @@
 import prisma from '../config/db.js';
+import redis from '../config/redis.js';
 
 export const uploadVideo = async (req, res) => {
   try {
@@ -65,9 +66,10 @@ export const getVideos = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
 export const deleteVideo = async (req, res) => {
   try {
-    const videoId = parseInt(req.params.id, 10);
+    const videoId = req.params.id;
     const userId = req.userId;
     
     const video = await prisma.video.findUnique({
@@ -95,19 +97,17 @@ export const deleteVideo = async (req, res) => {
 
 export const incrementVideoView = async (req, res) => {
   try {
-    const { id } = req.params; // Video ID
-    
-    // 1. Redis mein view count ko fast increment karo
+    const { id } = req.params; 
     const viewsCount = await redis.incr(`video:views:${id}`);
 
-    await prisma.video.update({
+    const updatedVideo = await prisma.video.update({
       where: { id },
       data: { views: viewsCount }
     });
 
     return res.status(200).json({
       success: true,
-      views: viewsCount
+      views: updatedVideo.views
     });
   } catch (error) {
     console.error("Error updating view:", error);

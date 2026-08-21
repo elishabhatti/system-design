@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { fetchVideos } from "../services/api";
+import { fetchVideos, incrementVideoView } from "../services/api";
 import { ThumbsUp, Share2, Bookmark, MoreVertical, Sparkles, Eye, Radio, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
@@ -34,7 +34,7 @@ export default function VideoDetail() {
     }
   };
 
-  const incrementVideoView = async (videoId) => {
+  const incrementView = async (videoId) => {
     try {
       const data = await incrementVideoView(videoId);
       if (data.success) {
