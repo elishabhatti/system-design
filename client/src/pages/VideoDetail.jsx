@@ -14,9 +14,15 @@ export default function VideoDetail() {
     loadVideos();
   }, []);
 
+  useEffect(() => {
+    if (currentVideo && currentVideo.id) {
+      incrementVideoView(currentVideo.id);
+    }
+  }, [currentVideo?.id]);
+
   const loadVideos = async () => {
     try {
-      const  data = await fetchVideos();
+      const data = await fetchVideos();
       if (data && data.videos && data.videos.length > 0) {
         setVideos(data.videos);
         setCurrentVideo(data.videos[0]);
@@ -25,6 +31,17 @@ export default function VideoDetail() {
       console.error("Failed to load videos", err);
     } finally {
       setLoadingVideos(false);
+    }
+  };
+
+  const incrementVideoView = async (videoId) => {
+    try {
+      const data = await incrementVideoView(videoId);
+      if (data.success) {
+        setCurrentVideo(prev => ({ ...prev, views: data.views }));
+      }
+    } catch (err) {
+      console.error("Failed to increment view", err);
     }
   };
 
@@ -115,7 +132,7 @@ export default function VideoDetail() {
                 <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-300 mb-3 pb-3 border-b border-white/10">
                   <span className="flex items-center gap-1.5">
                     <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                    {currentVideo.views || '1.2M views'}
+                    {currentVideo.views ?? 0} views
                   </span>
                   <span className="flex items-center gap-1.5">
                     <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
