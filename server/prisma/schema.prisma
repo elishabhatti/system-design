@@ -1,23 +1,24 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 model User {
   id          String   @id @default(uuid())
   channelName String   
   email       String   @unique
-  password    String   // Hashed password (bcrypt)
-  avatarUrl   String?  // Optional profile picture / logo
+  password    String   
+  avatarUrl   String?  
   bio         String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  videos      Video[]  // Relation: Ek user ke multiple videos
+  videos      Video[]  
+  views       View[]   
 }
 
 model Video {
@@ -30,16 +31,17 @@ model Video {
   mimetype      String
   thumbnailUrl  String?
   category      String?   @default("General")
-  tags          String?   // Comma separated tags or JSON
+  tags          String?   
   isMadeForKids Boolean   @default(false)
   ageRestricted Boolean   @default(false)
-  visibility    String    @default("private") // public, private, schedule
+  visibility    String    @default("private") 
   scheduledFor  DateTime?
-  views         Int       @default(0)
+  views         Int       @default(0) // <-- Yeh raha correct default value
   uploadedAt    DateTime  @default(now())
 
-  userId        String    // Foreign Key
+  userId        String    
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewsRelation View[]    // Relation name distinguish karne ke liye viewsRelation rakh sakte hain
 }
 
 model View {
@@ -49,5 +51,5 @@ model View {
   user    User   @relation(fields: [userId], references: [id])
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, videoId]) // Ek user ek video ko sirf ek baar view kar sakta hai
+  @@unique([userId, videoId])
 }
