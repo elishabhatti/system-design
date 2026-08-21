@@ -45,3 +45,8 @@ export const deleteVideo = async (videoId) => {
   const response = await API.delete(`/videos/${videoId}`);
   return response.data;
 };
+
+export const incrementVideoView = async (videoId) => {
+  const response = await API.post(`/videos/${videoId}/view`);
+  return response.data;
+};

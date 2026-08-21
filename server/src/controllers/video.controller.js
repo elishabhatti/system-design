@@ -95,17 +95,22 @@ export const deleteVideo = async (req, res) => {
 
 export const incrementVideoView = async (req, res) => {
   try {
-    const videoId = req.params.id;
+    const { id } = req.params; // Video ID
     
-    const viewsCount = await redis.incr(`video:views:${videoId}`);
+    // 1. Redis mein view count ko fast increment karo
+    const viewsCount = await redis.incr(`video:views:${id}`);
+
+    await prisma.video.update({
+      where: { id },
+      data: { views: viewsCount }
+    });
 
     return res.status(200).json({
       success: true,
-      message: "View counted successfully in Redis!",
       views: viewsCount
     });
   } catch (error) {
-    console.error("Error incrementing view:", error);
+    console.error("Error updating view:", error);
     return res.status(500).json({ error: error.message });
   }
 };
