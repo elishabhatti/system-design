@@ -61,12 +61,11 @@ export default function Home() {
           } else if (Array.isArray(response)) {
             setVideos(response);
           } else {
-            setVideos(dummyVideos);
+            console.log("No Videos Added yet  ");
           }
         })
         .catch((err) => {
           console.warn("API error, loading dummy YouTube feed.", err);
-          setVideos(dummyVideos);
         })
         .finally(() => setLoading(false));
     });
