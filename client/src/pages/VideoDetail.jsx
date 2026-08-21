@@ -35,20 +35,19 @@ export default function VideoDetail() {
   };
 
   const handleTimeUpdate = (e) => {
-    const videoElement = e.target;
-    const currentTime = videoElement.currentTime;
-    const duration = videoElement.duration;
+    const video = e.target;
+    const watchedPercentage = (video.currentTime / video.duration) * 100;
 
-    if (!duration || viewCountedRef.current) return;
-
-    const watchedPercentage = (currentTime / duration) * 100;
-    const viewedKey = `viewed_${currentVideo.id}`;
-
-    // Agar user ne 50% ya 60% video dekh li hai aur session mein pehle count nahi hua
-    if (watchedPercentage >= 50 && !sessionStorage.getItem(viewedKey)) {
-      viewCountedRef.current = true;
-      incrementView(currentVideo.id);
-      sessionStorage.setItem(viewedKey, 'true');
+    // Sirf tab call karein jab 50% ho jaye
+    if (watchedPercentage >= 50 && !viewCountedRef.current) {
+      viewCountedRef.current = true; // Block kar diya dubara call hone se
+      incrementVideoView(currentVideo.id)
+        .then(data => {
+          if (data.success) {
+            setCurrentVideo(prev => ({ ...prev, views: data.views }));
+          }
+        })
+        .catch(err => console.log("View count error", err));
     }
   };
 
@@ -92,8 +91,9 @@ export default function VideoDetail() {
           <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
             {/* Custom wrapper ya native video element par onTimeUpdate lagane ke liye */}
-            <div className="relative" onTimeUpdate={handleTimeUpdate}>
+            <div className="relative">
               <VideoPlayer
+                onTimeUpdate={handleTimeUpdate}
                 key={currentVideo.id}
                 src={currentVideo.filepath}
                 isLive={currentVideo.isLive}

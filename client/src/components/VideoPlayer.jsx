@@ -15,7 +15,7 @@ function formatTime(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export default function VideoPlayer({ src, isLive, poster }) {
+export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
@@ -248,12 +248,14 @@ export default function VideoPlayer({ src, isLive, poster }) {
     >
       {/* Video */}
       <video
+        onTimeUpdate={handleTimeUpdate}
         ref={videoRef}
         src={src}
         poster={poster}
         autoPlay
         className="w-full h-full object-contain"
         onClick={togglePlay}
+        controls
       />
 
       {/* Double-click seek zones */}

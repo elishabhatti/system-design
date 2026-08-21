@@ -97,29 +97,31 @@ export const deleteVideo = async (req, res) => {
 
 export const incrementVideoView = async (req, res) => {
   try {
-    const { id } = req.params; 
-    const redisKey = `video:views:${id}`;
-    const exists = await redis.exists(redisKey);
+    const { id } = req.params;
+    const userId = req.userId; 
 
-    if (!exists) {
-      const video = await prisma.video.findUnique({ where: { id } });
-      const initialViews = video ? video.views : 0;
-      await redis.set(redisKey, initialViews);
+    const alreadyViewed = await prisma.view.findUnique({
+      where: { userId_videoId: { userId, videoId: id } }
+    });
+
+    if (alreadyViewed) {
+      return res.status(200).json({ success: true, message: "Already counted." });
     }
 
-    const viewsCount = await redis.incr(redisKey);
+    await prisma.view.create({
+      data: { userId, videoId: id }
+    });
 
-    const updatedVideo = await prisma.video.update({
+    const redisKey = `video:views:${id}`;
+    const viewsCount = await redis.incr(redisKey);
+    
+    await prisma.video.update({
       where: { id },
       data: { views: viewsCount }
     });
 
-    return res.status(200).json({
-      success: true,
-      views: updatedVideo.views
-    });
+    return res.status(200).json({ success: true, views: viewsCount });
   } catch (error) {
-    console.error("Error updating view:", error);
     return res.status(500).json({ error: error.message });
   }
 };

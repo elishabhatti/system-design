@@ -41,3 +41,13 @@ model Video {
   userId        String    // Foreign Key
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model View {
+  id      String @id @default(uuid())
+  userId  String
+  videoId String
+  user    User   @relation(fields: [userId], references: [id])
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId]) // Ek user ek video ko sirf ek baar view kar sakta hai
+}

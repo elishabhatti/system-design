@@ -156,7 +156,7 @@ export default function Home() {
                   </span>
                   <div className="flex items-center gap-1.5 text-xs text-indigo-200/40 mt-0.5">
                     <Eye className="w-3 h-3" />
-                    <span>{vid.views || '12K views'}</span>
+                    <span>{vid.views}</span>
                     <span>•</span>
                     <span>{timeAgo(vid.uploadedAt || new Date())}</span>
                   </div>
