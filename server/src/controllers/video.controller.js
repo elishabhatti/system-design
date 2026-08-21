@@ -98,7 +98,16 @@ export const deleteVideo = async (req, res) => {
 export const incrementVideoView = async (req, res) => {
   try {
     const { id } = req.params; 
-    const viewsCount = await redis.incr(`video:views:${id}`);
+    const redisKey = `video:views:${id}`;
+    const exists = await redis.exists(redisKey);
+
+    if (!exists) {
+      const video = await prisma.video.findUnique({ where: { id } });
+      const initialViews = video ? video.views : 0;
+      await redis.set(redisKey, initialViews);
+    }
+
+    const viewsCount = await redis.incr(redisKey);
 
     const updatedVideo = await prisma.video.update({
       where: { id },

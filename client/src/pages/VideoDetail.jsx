@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
 import { ThumbsUp, Share2, Bookmark, MoreVertical, Sparkles, Eye, Radio, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -9,15 +9,15 @@ export default function VideoDetail() {
   const [currentVideo, setCurrentVideo] = useState(null);
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [liked, setLiked] = useState(false);
+  const viewCountedRef = useRef(false);
 
   useEffect(() => {
     loadVideos();
   }, []);
 
+  // Video change hone par view counted reference reset karein
   useEffect(() => {
-    if (currentVideo && currentVideo.id) {
-      incrementVideoView(currentVideo.id);
-    }
+    viewCountedRef.current = false;
   }, [currentVideo?.id]);
 
   const loadVideos = async () => {
@@ -31,6 +31,24 @@ export default function VideoDetail() {
       console.error("Failed to load videos", err);
     } finally {
       setLoadingVideos(false);
+    }
+  };
+
+  const handleTimeUpdate = (e) => {
+    const videoElement = e.target;
+    const currentTime = videoElement.currentTime;
+    const duration = videoElement.duration;
+
+    if (!duration || viewCountedRef.current) return;
+
+    const watchedPercentage = (currentTime / duration) * 100;
+    const viewedKey = `viewed_${currentVideo.id}`;
+
+    // Agar user ne 50% ya 60% video dekh li hai aur session mein pehle count nahi hua
+    if (watchedPercentage >= 50 && !sessionStorage.getItem(viewedKey)) {
+      viewCountedRef.current = true;
+      incrementView(currentVideo.id);
+      sessionStorage.setItem(viewedKey, 'true');
     }
   };
 
@@ -73,14 +91,16 @@ export default function VideoDetail() {
         <div className="lg:col-span-8 xl:col-span-9">
           <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
-            <VideoPlayer
-              key={currentVideo.id}
-              src={currentVideo.filepath}
-              isLive={currentVideo.isLive}
-            />
+            {/* Custom wrapper ya native video element par onTimeUpdate lagane ke liye */}
+            <div className="relative" onTimeUpdate={handleTimeUpdate}>
+              <VideoPlayer
+                key={currentVideo.id}
+                src={currentVideo.filepath}
+                isLive={currentVideo.isLive}
+              />
+            </div>
 
             <div className="p-5 flex flex-col gap-4">
-              {/* Title */}
               <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-snug">
                 {currentVideo.title}
               </h1>
