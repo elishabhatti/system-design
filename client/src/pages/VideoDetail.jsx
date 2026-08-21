@@ -16,10 +16,10 @@ export default function VideoDetail() {
 
   const loadVideos = async () => {
     try {
-      const data = await fetchVideos();
-      if (data && data.length > 0) {
-        setVideos(data);
-        setCurrentVideo(data[0]);
+      const  data = await fetchVideos();
+      if (data && data.videos && data.videos.length > 0) {
+        setVideos(data.videos);
+        setCurrentVideo(data.videos[0]);
       }
     } catch (err) {
       console.error("Failed to load videos", err);

@@ -55,11 +55,8 @@ export default function Home() {
   useEffect(() => {
     import('../services/api').then(({ fetchVideos }) => {
       fetchVideos()
-        .then((response) => {
-          console.log("Fetched response:", response);
-          
+        .then((response) => {          
           if (response && response.videos && response.videos.length > 0) {
-            console.log(`🚀 Yeh request serve ki hai port:`, response.servedByPort);
             setVideos(response.videos);
           } else if (Array.isArray(response)) {
             setVideos(response);
