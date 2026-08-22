@@ -1,6 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Sparkles, Flame, Music, Gamepad2, Laptop, GraduationCap, Smile, Radio, Film, Tv, Headphones, Zap, Code2, BrainCircuit, MoreVertical, Eye } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Sparkles,
+  Flame,
+  Music,
+  Gamepad2,
+  Laptop,
+  GraduationCap,
+  Smile,
+  Radio,
+  Film,
+  Tv,
+  Headphones,
+  Zap,
+  Code2,
+  BrainCircuit,
+  MoreVertical,
+  Eye,
+} from "lucide-react";
 
 const categories = [
   { name: "All", icon: Sparkles },
@@ -44,7 +61,7 @@ const timeAgo = (dateString) => {
   if (interval > 1) return `${interval} minutes ago`;
   if (interval === 1) return `1 minute ago`;
 
-  return 'Just now';
+  return "Just now";
 };
 
 export default function Home() {
@@ -53,9 +70,9 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState("All");
 
   useEffect(() => {
-    import('../services/api').then(({ fetchVideos }) => {
+    import("../services/api").then(({ fetchVideos }) => {
       fetchVideos()
-        .then((response) => {          
+        .then((response) => {
           if (response && response.videos && response.videos.length > 0) {
             setVideos(response.videos);
           } else if (Array.isArray(response)) {
@@ -74,14 +91,15 @@ export default function Home() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh]">
         <div className="w-5 h-5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-indigo-200/60 mt-3 font-medium">Loading...</p>
+        <p className="text-xs text-indigo-200/60 mt-3 font-medium">
+          Loading...
+        </p>
       </div>
     );
   }
 
   return (
     <div className="px-6 py-4 text-zinc-100 max-w-[1800px] mx-auto">
-
       {/* Filter Chips Bar */}
       <div className="flex items-center gap-2.5 overflow-x-auto pb-4 pt-1 mb-6 scrollbar-none sticky top-0  z-20">
         {categories.map((cat) => {
@@ -93,11 +111,13 @@ export default function Home() {
               onClick={() => setActiveCategory(cat.name)}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
                 isActive
-                  ? ' text-white font-semibold shadow-lg '
-                  : 'text-zinc-300 border border-white/5'
+                  ? " text-white font-semibold shadow-lg "
+                  : "text-zinc-300 border border-white/5"
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+              <Icon
+                className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-zinc-400"}`}
+              />
               {cat.name}
             </button>
           );
@@ -124,7 +144,10 @@ export default function Home() {
                   muted
                   loop
                   onMouseEnter={(e) => e.target.play().catch(() => {})}
-                  onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                  onMouseLeave={(e) => {
+                    e.target.pause();
+                    e.target.currentTime = 0;
+                  }}
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
 
@@ -142,10 +165,11 @@ export default function Home() {
 
               {/* Video Meta Info */}
               <div className="flex gap-3 items-start px-0.5">
-                <div className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow ring-2 ring-white/5">
-                  <img src={initialLetter} alt={channelName} />
-                </div>
-
+                <img
+                  className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow ring-2 ring-white/5"
+                  src={initialLetter}
+                  alt={channelName}
+                />
                 <div className="flex flex-col overflow-hidden w-full">
                   <h3 className="font-semibold text-zinc-100 text-sm tracking-tight line-clamp-2 leading-snug group-hover:text-white">
                     {vid.title}
@@ -162,7 +186,9 @@ export default function Home() {
                 </div>
 
                 <button
-                  onClick={(e) => { e.preventDefault(); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                  }}
                   className="text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition p-1"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -172,7 +198,6 @@ export default function Home() {
           );
         })}
       </div>
-
     </div>
   );
 }

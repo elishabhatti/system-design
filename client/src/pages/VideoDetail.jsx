@@ -109,7 +109,11 @@ export default function VideoDetail() {
               <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm ring-2 ring-white/10">
-                    {(currentVideo.user?.channelName || "E")[0].toUpperCase()}
+                    {currentVideo.user?.avatarUrl ? (
+                      <img src={currentVideo.user.avatarUrl} alt={currentVideo.user.channelName} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      (currentVideo.user?.channelName)[0].toUpperCase()
+                    )}
                   </div>
                   <div>
                     <h3 className="font-semibold text-xs text-zinc-200">
