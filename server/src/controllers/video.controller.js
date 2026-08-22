@@ -37,6 +37,14 @@ export const uploadVideo = async (req, res) => {
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
         userId: userId,
       },
+      include: {
+        user: {
+          select: {
+            channelName: true,
+            avatarUrl: true,
+          }
+        }
+      }
     });
 
     return res.status(201).json(newVideo);

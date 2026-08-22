@@ -107,8 +107,8 @@ export default function Home() {
       {/* Main Video Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {videos.map((vid) => {
-          const channelName = vid.user?.channelName || "Elisha Jameel";
-          const initialLetter = channelName[0].toUpperCase();
+          const channelName = vid.user?.channelName;
+          const initialLetter = vid.user?.avatarUrl;
 
           return (
             <Link
@@ -143,7 +143,7 @@ export default function Home() {
               {/* Video Meta Info */}
               <div className="flex gap-3 items-start px-0.5">
                 <div className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 shadow ring-2 ring-white/5">
-                  {initialLetter}
+                  <img src={initialLetter} alt={channelName} />
                 </div>
 
                 <div className="flex flex-col overflow-hidden w-full">

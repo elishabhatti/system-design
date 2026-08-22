@@ -12,7 +12,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'videos_streaming_app',
-    resource_type: 'video', // Important for video uploads!
+    resource_type: 'video',
   },
 });
 
