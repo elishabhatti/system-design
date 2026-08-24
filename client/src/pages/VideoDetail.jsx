@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
 import { ThumbsUp, Share2, Bookmark, Sparkles, Eye, Radio, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -9,15 +9,10 @@ export default function VideoDetail() {
   const [currentVideo, setCurrentVideo] = useState(null);
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [liked, setLiked] = useState(false);
-  const viewCountedRef = useRef(false);
 
   useEffect(() => {
     loadVideos();
   }, []);
-
-  useEffect(() => {
-    viewCountedRef.current = false;
-  }, [currentVideo?.id]);
 
   const loadVideos = async () => {
     try {
@@ -37,11 +32,14 @@ export default function VideoDetail() {
     const video = e.target;
     if (!video.duration) return;
 
+    // Direct DOM dataset check to completely prevent duplicate triggers
+    if (video.dataset.viewCounted === "true") return;
+
     const watchedPercentage = (video.currentTime / video.duration) * 100;
 
-    // Jab 20% video play ho jaye
-    if (watchedPercentage >= 20 && !viewCountedRef.current) {
-      viewCountedRef.current = true; 
+    if (watchedPercentage >= 20) {
+      video.dataset.viewCounted = "true"; 
+      
       console.log("20% reached! Incrementing view for video ID:", currentVideo?.id);
       
       if (currentVideo?.id) {
@@ -51,7 +49,10 @@ export default function VideoDetail() {
               setCurrentVideo(prev => ({ ...prev, views: data.views }));
             }
           })
-          .catch(err => console.log("View count error", err));
+          .catch(err => {
+            console.log("View count error", err);
+            delete video.dataset.viewCounted; // Retry allowed if network/server fails
+          });
       }
     }
   };

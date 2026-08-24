@@ -230,7 +230,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
       v.removeEventListener("waiting", onWaiting);
       v.removeEventListener("canplay", onCanPlay);
     };
-  }, [src, handleTimeUpdate]);
+  }, [src]);
 
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -251,7 +251,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
         onClick={togglePlay}
       />
 
-      {/* Double-click seek zones */}
       <div className="absolute inset-0 flex pointer-events-none">
         <div className="w-1/2 h-full pointer-events-auto" onDoubleClick={() => handleDoubleClickZone("left")} />
         <div className="w-1/2 h-full pointer-events-auto" onDoubleClick={() => handleDoubleClickZone("right")} />
