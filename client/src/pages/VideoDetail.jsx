@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
-import { ThumbsUp, Share2, Bookmark, MoreVertical, Sparkles, Eye, Radio, Clock } from "lucide-react";
+import { ThumbsUp, Share2, Bookmark, Sparkles, Eye, Radio, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
 
@@ -15,7 +15,6 @@ export default function VideoDetail() {
     loadVideos();
   }, []);
 
-  // Video change hone par view counted reference reset karein
   useEffect(() => {
     viewCountedRef.current = false;
   }, [currentVideo?.id]);
@@ -36,29 +35,24 @@ export default function VideoDetail() {
 
   const handleTimeUpdate = (e) => {
     const video = e.target;
+    if (!video.duration) return;
+
     const watchedPercentage = (video.currentTime / video.duration) * 100;
 
-    // Sirf tab call karein jab 50% ho jaye
-    if (watchedPercentage >= 50 && !viewCountedRef.current) {
-      viewCountedRef.current = true; // Block kar diya dubara call hone se
-      incrementVideoView(currentVideo.id)
-        .then(data => {
-          if (data.success) {
-            setCurrentVideo(prev => ({ ...prev, views: data.views }));
-          }
-        })
-        .catch(err => console.log("View count error", err));
-    }
-  };
-
-  const incrementView = async (videoId) => {
-    try {
-      const data = await incrementVideoView(videoId);
-      if (data.success) {
-        setCurrentVideo(prev => ({ ...prev, views: data.views }));
+    // Jab 20% video play ho jaye
+    if (watchedPercentage >= 20 && !viewCountedRef.current) {
+      viewCountedRef.current = true; 
+      console.log("20% reached! Incrementing view for video ID:", currentVideo?.id);
+      
+      if (currentVideo?.id) {
+        incrementVideoView(currentVideo.id)
+          .then(data => {
+            if (data && data.success) {
+              setCurrentVideo(prev => ({ ...prev, views: data.views }));
+            }
+          })
+          .catch(err => console.log("View count error", err));
       }
-    } catch (err) {
-      console.error("Failed to increment view", err);
     }
   };
 
@@ -90,13 +84,12 @@ export default function VideoDetail() {
         <div className="lg:col-span-8 xl:col-span-9">
           <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
-            {/* Custom wrapper ya native video element par onTimeUpdate lagane ke liye */}
             <div className="relative">
               <VideoPlayer
-                onTimeUpdate={handleTimeUpdate}
                 key={currentVideo.id}
                 src={currentVideo.filepath}
                 isLive={currentVideo.isLive}
+                handleTimeUpdate={handleTimeUpdate}
               />
             </div>
 
@@ -112,7 +105,7 @@ export default function VideoDetail() {
                     {currentVideo.user?.avatarUrl ? (
                       <img src={currentVideo.user.avatarUrl} alt={currentVideo.user.channelName} className="w-full h-full rounded-full object-cover" />
                     ) : (
-                      (currentVideo.user?.channelName)[0].toUpperCase()
+                      (currentVideo.user?.channelName || "E")[0].toUpperCase()
                     )}
                   </div>
                   <div>
@@ -121,7 +114,7 @@ export default function VideoDetail() {
                     </h3>
                     <span className="text-[11px] text-zinc-500">1.75K subscribers</span>
                   </div>
-                  <button className="ml-3 hover:bg-gray-500 text-white font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow shadow-violet-600/20">
+                  <button className="ml-3 bg-white text-black hover:bg-zinc-200 font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow">
                     Subscribe
                   </button>
                 </div>
@@ -183,7 +176,6 @@ export default function VideoDetail() {
 
         {/* Right: Up Next Sidebar */}
         <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
-
           <div className="border border-white/10 rounded-xl p-3.5 flex items-center justify-between shadow-md">
             <div>
               <h3 className="font-bold text-xs text-zinc-100">Mix - Library Stream</h3>
@@ -192,7 +184,7 @@ export default function VideoDetail() {
             <Sparkles className="w-4 h-4 text-violet-400" />
           </div>
 
-          <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin scrollbar-thumb-zinc-700">
+          <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1">
             {sidebarVideos.map((vid, idx) => {
               const isSelected = currentVideo.id === vid.id;
               return (
@@ -201,7 +193,7 @@ export default function VideoDetail() {
                   onClick={() => setCurrentVideo(vid)}
                   className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
                     isSelected
-                      ? 'border-violet-600/50'
+                      ? 'border-violet-600/50 bg-white/5'
                       : 'border-white/10 hover:border-white/20'
                   }`}
                 >
@@ -230,7 +222,6 @@ export default function VideoDetail() {
               );
             })}
           </div>
-
         </div>
 
       </div>

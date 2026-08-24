@@ -33,12 +33,11 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const [dragging, setDragging] = useState(false);
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverX, setHoverX] = useState(0);
-  const [seekFlash, setSeekFlash] = useState(null); // 'left' | 'right' | null
+  const [seekFlash, setSeekFlash] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const hideTimer = useRef(null);
 
-  // --- Play / Pause ---
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -46,7 +45,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     else v.pause();
   }, []);
 
-  // --- Seek helpers ---
   const seekTo = useCallback((time) => {
     const v = videoRef.current;
     if (!v) return;
@@ -59,7 +57,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     seekTo(v.currentTime + delta);
   }, [seekTo]);
 
-  // --- Scrub bar interactions ---
   const getTimeFromClientX = (clientX) => {
     const bar = progressBarRef.current;
     if (!bar) return 0;
@@ -86,14 +83,12 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     return () => window.removeEventListener("mouseup", stopDrag);
   }, []);
 
-  // --- Double click zones to seek ---
   const handleDoubleClickZone = (dir) => {
     skip(dir === "left" ? -10 : 10);
     setSeekFlash(dir);
     setTimeout(() => setSeekFlash(null), 500);
   };
 
-  // --- Volume ---
   const handleVolumeChange = (e) => {
     const v = videoRef.current;
     const val = parseFloat(e.target.value);
@@ -109,14 +104,12 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     setMuted(v.muted);
   };
 
-  // --- Speed ---
   const changeSpeed = (s) => {
     videoRef.current.playbackRate = s;
     setSpeed(s);
     setShowSpeedMenu(false);
   };
 
-  // --- Fullscreen ---
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen();
@@ -131,7 +124,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // --- PiP ---
   const togglePiP = async () => {
     try {
       if (document.pictureInPictureElement) {
@@ -144,7 +136,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     }
   };
 
-  // --- Auto-hide controls ---
   const resetHideTimer = useCallback(() => {
     setControlsVisible(true);
     clearTimeout(hideTimer.current);
@@ -153,7 +144,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     }, 2500);
   }, [playing]);
 
-  // --- Keyboard shortcuts ---
   useEffect(() => {
     const handleKey = (e) => {
       if (!containerRef.current?.contains(document.activeElement) &&
@@ -200,12 +190,18 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [togglePlay, skip]);
 
-  // --- Video element event bindings ---
+  // Video Events Listener
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
-    const onTimeUpdate = () => setCurrentTime(v.currentTime);
+    const onTimeUpdate = () => {
+      setCurrentTime(v.currentTime);
+      if (typeof handleTimeUpdate === "function") {
+        handleTimeUpdate({ target: v });
+      }
+    };
+
     const onLoadedMeta = () => { setDuration(v.duration); setLoading(false); };
     const onProgress = () => {
       if (v.buffered.length > 0) {
@@ -234,7 +230,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
       v.removeEventListener("waiting", onWaiting);
       v.removeEventListener("canplay", onCanPlay);
     };
-  }, [src]);
+  }, [src, handleTimeUpdate]);
 
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -246,62 +242,42 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
       onMouseMove={resetHideTimer}
       onMouseLeave={() => playing && setControlsVisible(false)}
     >
-      {/* Video */}
       <video
-        onTimeUpdate={handleTimeUpdate}
         ref={videoRef}
         src={src}
         poster={poster}
         autoPlay
         className="w-full h-full object-contain"
         onClick={togglePlay}
-        controls
       />
 
       {/* Double-click seek zones */}
       <div className="absolute inset-0 flex pointer-events-none">
-        <div
-          className="w-1/2 h-full pointer-events-auto"
-          onDoubleClick={() => handleDoubleClickZone("left")}
-        />
-        <div
-          className="w-1/2 h-full pointer-events-auto"
-          onDoubleClick={() => handleDoubleClickZone("right")}
-        />
+        <div className="w-1/2 h-full pointer-events-auto" onDoubleClick={() => handleDoubleClickZone("left")} />
+        <div className="w-1/2 h-full pointer-events-auto" onDoubleClick={() => handleDoubleClickZone("right")} />
       </div>
 
-      {/* Seek flash feedback */}
       {seekFlash && (
-        <div
-          className={`absolute top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 text-white pointer-events-none animate-pulse ${
-            seekFlash === "left" ? "left-10" : "right-10"
-          }`}
-        >
+        <div className={`absolute top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 text-white pointer-events-none animate-pulse ${seekFlash === "left" ? "left-10" : "right-10"}`}>
           {seekFlash === "left" ? <RotateCcw className="w-8 h-8" /> : <RotateCw className="w-8 h-8" />}
           <span className="text-xs font-bold">10s</span>
         </div>
       )}
 
-      {/* Loading spinner */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-10 h-10 border-[3px] border-white/30 border-t-white rounded-full animate-spin" />
         </div>
       )}
 
-      {/* Center play button (paused state) */}
       {!playing && !loading && (
-        <button
-          onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center cursor-pointer"
-        >
+        <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center cursor-pointer">
           <span className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-violet-600/80 transition">
             <Play className="w-7 h-7 text-white fill-white ml-1" />
           </span>
         </button>
       )}
 
-      {/* Live badge */}
       {isLive && (
         <span className="absolute top-3 left-3 flex items-center gap-1 bg-red-600 text-[10px] font-bold px-2 py-1 rounded text-white tracking-wide z-10">
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -309,13 +285,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
         </span>
       )}
 
-      {/* Controls bar */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-linear-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${
-          controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        {/* Progress bar */}
+      <div className={`absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
         <div
           ref={progressBarRef}
           className="relative w-full h-1.5 group/bar cursor-pointer mb-3"
@@ -323,42 +293,23 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
           onMouseLeave={() => setHoverTime(null)}
           onMouseDown={handleBarMouseDown}
         >
-          {/* Track */}
           <div className="absolute inset-0 bg-white/20 rounded-full" />
-          {/* Buffered */}
-          <div
-            className="absolute inset-y-0 left-0 bg-white/35 rounded-full"
-            style={{ width: `${bufferedPct}%` }}
-          />
-          {/* Progress fill */}
-          <div
-            className="absolute inset-y-0 left-0 bg-white rounded-full"
-            style={{ width: `${progressPct}%` }}
-          />
-          {/* Scrub handle */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full shadow opacity-0 group-hover/bar:opacity-100 transition-opacity"
-            style={{ left: `calc(${progressPct}% - 7px)` }}
-          />
-          {/* Hover time tooltip */}
+          <div className="absolute inset-y-0 left-0 bg-white/35 rounded-full" style={{ width: `${bufferedPct}%` }} />
+          <div className="absolute inset-y-0 left-0 bg-white rounded-full" style={{ width: `${progressPct}%` }} />
+          <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full shadow opacity-0 group-hover/bar:opacity-100 transition-opacity" style={{ left: `calc(${progressPct}% - 7px)` }} />
           {hoverTime !== null && !isLive && (
-            <div
-              className="absolute -top-8 -translate-x-1/2 bg-black/90 text-white text-[10px] font-mono px-1.5 py-1 rounded pointer-events-none"
-              style={{ left: hoverX }}
-            >
+            <div className="absolute -top-8 -translate-x-1/2 bg-black/90 text-white text-[10px] font-mono px-1.5 py-1 rounded pointer-events-none" style={{ left: hoverX }}>
               {formatTime(hoverTime)}
             </div>
           )}
         </div>
 
-        {/* Controls row */}
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <button onClick={togglePlay} className="hover:text-gray-400 transition cursor-pointer">
               {playing ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
             </button>
 
-          {/* Volume */}
             <div className="flex items-center gap-1.5 group/vol">
               <button onClick={toggleMute} className="transition cursor-pointer">
                 {muted || volume === 0 ? <VolumeX className="w-4.5 h-4.5" /> : <Volume2 className="w-4.5 h-4.5" />}
@@ -376,7 +327,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
               </div>
             </div>
 
-            {/* Time */}
             {!isLive && (
               <span className="text-[11px] font-mono text-zinc-300 tabular-nums">
                 {formatTime(currentTime)} / {formatTime(duration)}
@@ -388,7 +338,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
           </div>
 
           <div className="flex items-center gap-3 relative">
-            {/* Speed */}
             <div className="relative">
               <button
                 onClick={() => setShowSpeedMenu((s) => !s)}
@@ -403,9 +352,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
                     <button
                       key={s}
                       onClick={() => changeSpeed(s)}
-                      className={`w-full text-left px-3 py-1 text-[11px] font-mono hover:bg-violet-600/20 transition cursor-pointer ${
-                        s === speed ? "text-violet-400 font-bold" : "text-zinc-300"
-                      }`}
+                      className={`w-full text-left px-3 py-1 text-[11px] font-mono hover:bg-violet-600/20 transition cursor-pointer ${s === speed ? "text-violet-400 font-bold" : "text-zinc-300"}`}
                     >
                       {s}x
                     </button>

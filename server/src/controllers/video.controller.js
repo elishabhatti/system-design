@@ -57,8 +57,6 @@ export const uploadVideo = async (req, res) => {
 export const getVideos = async (req, res) => {
   try {
     const currentPort = process.env.PORT || 3000;
-    console.log(`🔥 Request received on Server Port: ${currentPort}`);
-
     const videos = await prisma.video.findMany({
       include: { user: true },
       orderBy: { uploadedAt: 'desc' }
@@ -104,6 +102,7 @@ export const deleteVideo = async (req, res) => {
 };
 
 export const incrementVideoView = async (req, res) => {
+  console.log(req.userId, req.params.id, "Incrementing view count for video");
   try {
     const { id } = req.params;
     const userId = req.userId; 
