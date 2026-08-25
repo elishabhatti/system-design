@@ -246,7 +246,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
         ref={videoRef}
         src={src}
         poster={poster}
-        autoPlay
         className="w-full h-full object-contain"
         onClick={togglePlay}
       />

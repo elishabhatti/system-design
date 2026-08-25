@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
 import { ThumbsUp, Share2, Bookmark, Sparkles, Eye, Radio, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -9,6 +9,9 @@ export default function VideoDetail() {
   const [currentVideo, setCurrentVideo] = useState(null);
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [liked, setLiked] = useState(false);
+
+  // Session ke liye ref tracking taake rewatch ya re-render par state zero na ho
+  const countedSessionRef = useRef(new Set());
 
   useEffect(() => {
     loadVideos();
@@ -28,32 +31,33 @@ export default function VideoDetail() {
     }
   };
 
-  const handleTimeUpdate = (e) => {
+const handleTimeUpdate = (e) => {
     const video = e.target;
-    if (!video.duration) return;
+    if (!video.duration || !currentVideo?.id) return;
 
-    // Direct DOM dataset check to completely prevent duplicate triggers
-    if (video.dataset.viewCounted === "true") return;
+    if (countedSessionRef.current.has(currentVideo.id)) return;
 
     const watchedPercentage = (video.currentTime / video.duration) * 100;
 
     if (watchedPercentage >= 20) {
-      video.dataset.viewCounted = "true"; 
+      countedSessionRef.current.add(currentVideo.id); 
       
-      console.log("20% reached! Incrementing view for video ID:", currentVideo?.id);
+      console.log("20% reached! Incrementing view for video ID:", currentVideo.id);
       
-      if (currentVideo?.id) {
-        incrementVideoView(currentVideo.id)
-          .then(data => {
-            if (data && data.success) {
-              setCurrentVideo(prev => ({ ...prev, views: data.views }));
-            }
-          })
-          .catch(err => {
-            console.log("View count error", err);
-            delete video.dataset.viewCounted; // Retry allowed if network/server fails
-          });
-      }
+      incrementVideoView(currentVideo.id)
+        .then(data => {
+          if (data && data.success && typeof data.views === 'number') {
+            // Safe update: views kabhi undefined ya 0 par reset nahi honge
+            setCurrentVideo(prev => ({ 
+              ...prev, 
+              views: data.views 
+            }));
+          }
+        })
+        .catch(err => {
+          console.log("View count error", err);
+          countedSessionRef.current.delete(currentVideo.id);
+        });
     }
   };
 
