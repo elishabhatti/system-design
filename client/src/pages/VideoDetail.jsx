@@ -49,12 +49,6 @@ export default function VideoDetail() {
 
     if (watchedPercentage >= 20) {
       countedSessionRef.current.add(currentVideo.id);
-
-      console.log(
-        "20% reached! Incrementing view for video ID:",
-        currentVideo.id,
-      );
-
       incrementVideoView(currentVideo.id)
         .then((data) => {
           if (data && data.success && typeof data.views === "number") {
@@ -66,7 +60,7 @@ export default function VideoDetail() {
           }
         })
         .catch((err) => {
-          console.log("View count error", err);
+          console.error("View count error", err);
           countedSessionRef.current.delete(currentVideo.id);
         });
     }

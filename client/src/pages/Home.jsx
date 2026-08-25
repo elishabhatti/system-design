@@ -77,9 +77,7 @@ export default function Home() {
             setVideos(response.videos);
           } else if (Array.isArray(response)) {
             setVideos(response);
-          } else {
-            console.log("No Videos Added yet  ");
-          }
+          } 
         })
         .catch((err) => {
           console.warn("API error, loading dummy YouTube feed.", err);
