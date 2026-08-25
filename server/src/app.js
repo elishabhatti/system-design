@@ -4,6 +4,7 @@ import authRoutes from "./routes/user.routes.js";
 import cors from "cors";
 import path from "path";
 import cookieParser from "cookie-parser";
+import http from "http";
 import { Server } from "socket.io";
 
 const app = express();
@@ -17,7 +18,7 @@ const io = new Server(server, {
   }
 });
 
-app.set("io", io); // Socket.IO instance 
+app.set("io", io); 
 
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
@@ -44,4 +45,4 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/videos", videoRoutes);
 
-export { app };
+export { app, server };

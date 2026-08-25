@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
+import { io } from "socket.io-client"; // 🔥 Socket client import
 import {
   ThumbsUp,
   Share2,
@@ -11,6 +12,10 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
+
+// Socket connection instance (Backend URL ke mutabiq)
+const SOCKET_URL = "http://localhost:5000"; // Agar port mukhtalif ho toh yahan change kar lein
+const socket = io(SOCKET_URL);
 
 export default function VideoDetail() {
   const [videos, setVideos] = useState([]);
@@ -24,6 +29,33 @@ export default function VideoDetail() {
   useEffect(() => {
     loadVideos();
   }, []);
+
+  // 🔥 Real-time Socket.io Room & Listeners Integration
+  useEffect(() => {
+    if (!currentVideo?.id) return;
+
+    // Is video ke room ko join karo
+    socket.emit("join_video_room", currentVideo.id);
+
+    // Live views update suno (Jab koi bhi user view increment karega)
+    socket.on("view_updated", (data) => {
+      if (data && typeof data.views === "number") {
+        setCurrentVideo((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            views: data.views,
+          };
+        });
+      }
+    });
+
+    // Cleanup: Jab video change ho ya component unmount ho
+    return () => {
+      socket.emit("leave_video_room", currentVideo.id);
+      socket.off("view_updated");
+    };
+  }, [currentVideo?.id]);
 
   const loadVideos = async () => {
     try {
