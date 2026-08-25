@@ -13,8 +13,7 @@ import {
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
 
-// Socket connection instance (Backend URL ke mutabiq)
-const SOCKET_URL = "http://localhost:5000"; // Agar port mukhtalif ho toh yahan change kar lein
+const SOCKET_URL = "http://localhost:3000"; 
 const socket = io(SOCKET_URL);
 
 export default function VideoDetail() {
