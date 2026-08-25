@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
-import { io } from "socket.io-client"; // 🔥 Socket client import
+import { io } from "socket.io-client"; 
 import {
   ThumbsUp,
   Share2,
