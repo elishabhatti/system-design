@@ -134,6 +134,11 @@ export const incrementVideoView = async (req, res) => {
         select: { views: true }
       });
 
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`video_${id}`).emit("view_updated", { views: updatedVideo.views });
+      }
+
       return res.status(200).json({ success: true, views: updatedVideo.views });
 
     } finally {
