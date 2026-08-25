@@ -107,28 +107,44 @@ export const incrementVideoView = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId; 
 
-    const alreadyViewed = await prisma.view.findUnique({
-      where: { userId_videoId: { userId, videoId: id } }
-    });
-
-    if (alreadyViewed) {
-      return res.status(200).json({ success: true, message: "Already counted." });
+    const redisKey = `view:lock:${userId}:${id}`;
+    const acquiredLock = await redis.set(redisKey, "locked", "EX", 10, "NX");
+    
+    if (!acquiredLock) {
+      return res.status(200).json({ success: true, message: "Request already in progress." });
     }
 
-    await prisma.view.create({
-      data: { userId, videoId: id }
-    });
+    try {
+      const existingView = await prisma.view.findUnique({
+        where: { userId_videoId: { userId, videoId: id } }
+      });
 
-    const redisKey = `video:views:${id}`;
-    const viewsCount = await redis.incr(redisKey);
-    
-    await prisma.video.update({
-      where: { id },
-      data: { views: viewsCount }
-    });
+      if (existingView) {
+        const video = await prisma.video.findUnique({ where: { id }, select: { views: true } });
+        return res.status(200).json({ success: true, views: video?.views || 0 });
+      }
 
-    return res.status(200).json({ success: true, views: viewsCount });
+      await prisma.view.create({
+        data: { userId, videoId: id }
+      });
+
+      const updatedVideo = await prisma.video.update({
+        where: { id },
+        data: { views: { increment: 1 } },
+        select: { views: true }
+      });
+
+      return res.status(200).json({ success: true, views: updatedVideo.views });
+
+    } finally {
+      await redis.del(redisKey);
+    }
+
   } catch (error) {
+    if (error.code === 'P2002') {
+      const video = await prisma.video.findUnique({ where: { id: req.params.id }, select: { views: true } });
+      return res.status(200).json({ success: true, views: video?.views || 0 });
+    }
     return res.status(500).json({ error: error.message });
   }
 };
