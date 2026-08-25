@@ -1,6 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import { fetchVideos, incrementVideoView } from "../services/api";
-import { ThumbsUp, Share2, Bookmark, Sparkles, Eye, Radio, Clock } from "lucide-react";
+import {
+  ThumbsUp,
+  Share2,
+  Bookmark,
+  Sparkles,
+  Eye,
+  Radio,
+  Clock,
+} from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
 
@@ -31,7 +39,7 @@ export default function VideoDetail() {
     }
   };
 
-const handleTimeUpdate = (e) => {
+  const handleTimeUpdate = (e) => {
     const video = e.target;
     if (!video.duration || !currentVideo?.id) return;
 
@@ -40,21 +48,24 @@ const handleTimeUpdate = (e) => {
     const watchedPercentage = (video.currentTime / video.duration) * 100;
 
     if (watchedPercentage >= 20) {
-      countedSessionRef.current.add(currentVideo.id); 
-      
-      console.log("20% reached! Incrementing view for video ID:", currentVideo.id);
-      
+      countedSessionRef.current.add(currentVideo.id);
+
+      console.log(
+        "20% reached! Incrementing view for video ID:",
+        currentVideo.id,
+      );
+
       incrementVideoView(currentVideo.id)
-        .then(data => {
-          if (data && data.success && typeof data.views === 'number') {
+        .then((data) => {
+          if (data && data.success && typeof data.views === "number") {
             // Safe update: views kabhi undefined ya 0 par reset nahi honge
-            setCurrentVideo(prev => ({ 
-              ...prev, 
-              views: data.views 
+            setCurrentVideo((prev) => ({
+              ...prev,
+              views: data.views,
             }));
           }
         })
-        .catch(err => {
+        .catch((err) => {
           console.log("View count error", err);
           countedSessionRef.current.delete(currentVideo.id);
         });
@@ -65,7 +76,9 @@ const handleTimeUpdate = (e) => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[75vh]">
         <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-zinc-400 mt-3 font-mono">Loading player...</p>
+        <p className="text-xs text-zinc-400 mt-3 font-mono">
+          Loading player...
+        </p>
       </div>
     );
   }
@@ -84,11 +97,9 @@ const handleTimeUpdate = (e) => {
     <>
       <Navbar />
       <div className="max-w-full mx-auto px-4 lg:px-8 py-6 text-zinc-100 grid grid-cols-1 lg:grid-cols-12 gap-6">
-
         {/* Left: Player Card */}
         <div className="lg:col-span-8 xl:col-span-9">
           <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-
             <div className="relative">
               <VideoPlayer
                 key={currentVideo.id}
@@ -108,7 +119,11 @@ const handleTimeUpdate = (e) => {
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm ring-2 ring-white/10">
                     {currentVideo.user?.avatarUrl ? (
-                      <img src={currentVideo.user.avatarUrl} alt={currentVideo.user.channelName} className="w-full h-full rounded-full object-cover" />
+                      <img
+                        src={currentVideo.user.avatarUrl}
+                        alt={currentVideo.user.channelName}
+                        className="w-full h-full rounded-full object-cover"
+                      />
                     ) : (
                       (currentVideo.user?.channelName || "E")[0].toUpperCase()
                     )}
@@ -117,7 +132,9 @@ const handleTimeUpdate = (e) => {
                     <h3 className="font-semibold text-xs text-zinc-200">
                       {currentVideo.user?.channelName || "Elisha Jameel"}
                     </h3>
-                    <span className="text-[11px] text-zinc-500">1.75K subscribers</span>
+                    <span className="text-[11px] text-zinc-500">
+                      1.75K subscribers
+                    </span>
                   </div>
                   <button className="ml-3 bg-white text-black hover:bg-zinc-200 font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow">
                     Subscribe
@@ -129,12 +146,12 @@ const handleTimeUpdate = (e) => {
                     onClick={() => setLiked(!liked)}
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition cursor-pointer ${
                       liked
-                        ? 'bg-violet-600 border-violet-600 text-white'
-                        : 'bg-[#1c1c22] border-white/10 hover:bg-[#26233A]'
+                        ? "bg-violet-600 border-violet-600 text-white"
+                        : "bg-[#1c1c22] border-white/10 hover:bg-[#26233A]"
                     }`}
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
-                    <span>{liked ? '28.1K' : '28K'}</span>
+                    <span>{liked ? "28.1K" : "28K"}</span>
                   </button>
 
                   <button className="flex items-center gap-1.5 bg-[#1c1c22] hover:bg-[#26233A] px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer">
@@ -168,11 +185,14 @@ const handleTimeUpdate = (e) => {
                   )}
                   <span className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                    {currentVideo.uploadedAt ? new Date(currentVideo.uploadedAt).toLocaleDateString() : 'Aug 15, 2026'}
+                    {currentVideo.uploadedAt
+                      ? new Date(currentVideo.uploadedAt).toLocaleDateString()
+                      : "Aug 15, 2026"}
                   </span>
                 </div>
                 <p className="text-zinc-400">
-                  {currentVideo.description || "Enjoy this immersive media stream configured directly from your library feed."}
+                  {currentVideo.description ||
+                    "Enjoy this immersive media stream configured directly from your library feed."}
                 </p>
               </div>
             </div>
@@ -183,8 +203,12 @@ const handleTimeUpdate = (e) => {
         <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
           <div className="border border-white/10 rounded-xl p-3.5 flex items-center justify-between shadow-md">
             <div>
-              <h3 className="font-bold text-xs text-zinc-100">Mix - Library Stream</h3>
-              <span className="text-[10px] text-zinc-500">{videos.length} videos</span>
+              <h3 className="font-bold text-xs text-zinc-100">
+                Mix - Library Stream
+              </h3>
+              <span className="text-[10px] text-zinc-500">
+                {videos.length} videos
+              </span>
             </div>
             <Sparkles className="w-4 h-4 text-violet-400" />
           </div>
@@ -198,14 +222,18 @@ const handleTimeUpdate = (e) => {
                   onClick={() => setCurrentVideo(vid)}
                   className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
                     isSelected
-                      ? 'border-violet-600/50 bg-white/5'
-                      : 'border-white/10 hover:border-white/20'
+                      ? "border-violet-600/50 bg-white/5"
+                      : "border-white/10 hover:border-white/20"
                   }`}
                 >
                   <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-white/10">
-                    <video src={vid.filepath} className="w-full h-full object-cover" muted />
+                    <video
+                      src={vid.filepath}
+                      className="w-full h-full object-cover"
+                      muted
+                    />
                     <span className="absolute bottom-1 right-1 bg-black/85 text-[9px] px-1 rounded text-zinc-200 font-mono">
-                      {vid.duration || '5:31'}
+                      {vid.duration || "5:31"}
                     </span>
                     {vid.isLive && (
                       <span className="absolute top-1 left-1 bg-red-600 text-[8px] font-bold px-1 rounded text-white">
@@ -215,8 +243,12 @@ const handleTimeUpdate = (e) => {
                   </div>
 
                   <div className="flex flex-col overflow-hidden w-full">
-                    <span className="text-[10px] font-mono text-zinc-600 mb-0.5">#{idx + 1} in queue</span>
-                    <h4 className={`font-semibold text-xs truncate ${isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'}`}>
+                    <span className="text-[10px] font-mono text-zinc-600 mb-0.5">
+                      #{idx + 1} in queue
+                    </span>
+                    <h4
+                      className={`font-semibold text-xs truncate ${isSelected ? "text-white" : "text-zinc-200 group-hover:text-white"}`}
+                    >
                       {vid.title}
                     </h4>
                     <span className="text-[11px] text-zinc-500 truncate mt-0.5">
@@ -228,7 +260,6 @@ const handleTimeUpdate = (e) => {
             })}
           </div>
         </div>
-
       </div>
     </>
   );
