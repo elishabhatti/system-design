@@ -46,6 +46,7 @@ export const uploadVideo = async (req, res) => {
         }
       }
     });
+    await redis.del("videos:all");
 
     return res.status(201).json(newVideo);
   } catch (error) {
@@ -57,14 +58,28 @@ export const uploadVideo = async (req, res) => {
 export const getVideos = async (req, res) => {
   try {
     const currentPort = process.env.PORT || 3000;
+    const cacheKey = "videos:all";
+    const cachedVideos = await redis.get(cacheKey);
+
+    if (cachedVideos) {
+      return res.status(200).json({ 
+        videos: JSON.parse(cachedVideos),
+        success: true,
+        source: "cache",
+        servedByPort: currentPort,
+      });
+    }
+
     const videos = await prisma.video.findMany({
       include: { user: true },
       orderBy: { uploadedAt: 'desc' }
     });
 
+    await redis.setex(cacheKey, 300, JSON.stringify(videos));
     return res.status(200).json({ 
       videos,
       success: true,
+      source: "database",
       servedByPort: currentPort,
     });
   } catch (error) {
@@ -77,7 +92,6 @@ export const deleteVideo = async (req, res) => {
   try {
     const videoId = req.params.id;
     const userId = req.userId;
-    
     const video = await prisma.video.findUnique({
       where: { id: videoId },
     });
@@ -92,7 +106,8 @@ export const deleteVideo = async (req, res) => {
 
     await prisma.video.delete({
       where: { id: videoId },
-    });
+    })
+    await redis.del("videos:all");
 
     return res.status(200).json({ message: "Video deleted successfully." });
   } catch (error) {
@@ -102,7 +117,6 @@ export const deleteVideo = async (req, res) => {
 };
 
 export const incrementVideoView = async (req, res) => {
-  console.log(req.userId, req.params.id, "Incrementing view count for video");
   try {
     const { id } = req.params;
     const userId = req.userId; 
@@ -138,6 +152,8 @@ export const incrementVideoView = async (req, res) => {
       if (io) {
         io.to(`video_${id}`).emit("view_updated", { views: updatedVideo.views });
       }
+
+      await redis.del("videos:all");
 
       return res.status(200).json({ success: true, views: updatedVideo.views });
 
