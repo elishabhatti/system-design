@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uploadVideo } from "../services/api";
-import { CheckCircle2, Globe, Lock, Clock, UploadCloud, Radio, X, ArrowRight, Play } from 'lucide-react';
+import { CheckCircle2, Globe, Lock, Clock, UploadCloud, Radio, X, ArrowRight, RefreshCw } from 'lucide-react';
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -69,9 +69,8 @@ function SuccessModal({ data, onClose, onUploadAnother, onViewVideo }) {
           <span className="text-white font-medium">{data?.title || "Your asset"}</span> is now indexed.
         </p>
 
-        {/* Video Preview Box inside Modal */}
         {data?.id && (
-          <div className="my-4 relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 group">
+          <div className="my-4 relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10">
             <video
               src={`http://localhost:5000/api/videos/${data.id}/stream`}
               controls
@@ -106,6 +105,7 @@ export default function VideoUpload() {
   const navigate = useNavigate();
 
   const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -122,15 +122,31 @@ export default function VideoUpload() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  // Handle local video object URL cleanup to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   const handleFile = (selectedFile) => {
     if (!selectedFile) return;
     setFile(selectedFile);
+    
+    // Create local object URL for instant live preview
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+
     if (!title) setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
     setError("");
   };
 
   const resetForm = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(null);
+    setPreviewUrl(null);
     setTitle("");
     setDescription("");
     setCategory("Technology");
@@ -225,37 +241,52 @@ export default function VideoUpload() {
           <div className="flex-1 pb-7">
             <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>SOURCE ASSET</span>
 
-            <label
-              onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-              onDragLeave={() => setDragActive(false)}
-              onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFile(e.dataTransfer.files[0]); }}
-              className={`mt-2.5 flex flex-col items-center justify-center gap-1.5 border border-dashed rounded-xl py-8 cursor-pointer transition ${
-                dragActive ? 'border-white/60 bg-white/5' : 'border-white/15 hover:border-white/30 bg-white/[0.01]'
-              }`}
-            >
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e) => handleFile(e.target.files[0])}
-                className="hidden"
-              />
-              {file ? (
-                <>
-                  <span className="flex items-center gap-2 text-emerald-400 text-[11px] font-semibold" style={MONO}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    ASSET LOADED
-                  </span>
-                  <span className="text-xs text-white mt-0.5 font-medium">{file.name}</span>
-                  <span className="text-[10px] text-white/30">Drop another file to replace</span>
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="w-5 h-5 text-white/30" />
-                  <span className="text-xs text-white/60 mt-0.5">Drag & drop your video file here, or browse</span>
-                  <span className="text-[10px] text-white/30">MP4, MOV, WEBM</span>
-                </>
-              )}
-            </label>
+            {file && previewUrl ? (
+              /* 🔥 Live Video Preview Player inside Stage 01 */
+              <div className="mt-2.5 relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/15 group">
+                <video
+                  src={previewUrl}
+                  controls
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] text-white font-mono truncate max-w-[200px]">{file.name}</span>
+                </div>
+                
+                {/* Replace File Button */}
+                <label className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[10px] text-white/80 hover:text-white transition cursor-pointer flex items-center gap-1.5">
+                  <RefreshCw className="w-3 h-3" /> Replace
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => handleFile(e.target.files[0])}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            ) : (
+              /* Default Dropzone */
+              <label
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFile(e.dataTransfer.files[0]); }}
+                className={`mt-2.5 flex flex-col items-center justify-center gap-1.5 border border-dashed rounded-xl py-8 cursor-pointer transition ${
+                  dragActive ? 'border-white/60 bg-white/5' : 'border-white/15 hover:border-white/30 bg-white/[0.01]'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => handleFile(e.target.files[0])}
+                  className="hidden"
+                />
+                <UploadCloud className="w-5 h-5 text-white/30" />
+                <span className="text-xs text-white/60 mt-0.5">Drag & drop your video file here, or browse</span>
+                <span className="text-[10px] text-white/30">MP4, MOV, WEBM</span>
+              </label>
+            )}
           </div>
         </div>
 
