@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { getVideos, uploadVideo, deleteVideo, incrementVideoView } from '../controllers/video.controller.js';
-import { upload } from '../config/cloudinary.js'; // Yeh aapka Cloudinary wala multer middleware hona chahiye
+import { getVideos, uploadVideo, deleteVideo, incrementVideoView, streamVideo } from '../controllers/video.controller.js';
+import { upload } from '../config/cloudinary.js'; 
 import { protect } from '../middleware/auth.middleware.js';
 
 const router = Router();
