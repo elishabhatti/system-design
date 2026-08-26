@@ -1,6 +1,7 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { uploadVideo } from "../services/api";
-import { CheckCircle2, Globe, Lock, Clock, UploadCloud, Radio, X, PartyPopper } from 'lucide-react';
+import { CheckCircle2, Globe, Lock, Clock, UploadCloud, Radio, X, ArrowRight, Play } from 'lucide-react';
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -48,47 +49,62 @@ function ToggleSwitch({ checked, onChange, id, children }) {
   );
 }
 
-function SuccessModal({ data, onClose, onUploadAnother }) {
+function SuccessModal({ data, onClose, onUploadAnother, onViewVideo }) {
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div
-        className="bg-[#0A0A0B] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+        className="bg-[#0A0A0B] border border-white/15 rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-white/40 hover:text-white transition cursor-pointer">
           <X className="w-4 h-4" />
         </button>
 
-        <div className="w-14 h-14 rounded-full bg-[#3DDC84]/10 border border-[#3DDC84]/30 flex items-center justify-center mx-auto mb-4">
-          <CheckCircle2 className="w-7 h-7 text-[#3DDC84]" />
+        <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3">
+          <CheckCircle2 className="w-6 h-6 text-emerald-400" />
         </div>
 
-        <h2 className="text-sm font-bold text-white">Stream published</h2>
-        <p className="text-xs text-white/50 mt-1.5 leading-relaxed">
-          {data?.title || "Your asset"} has been indexed and is now in your pipeline.
+        <h2 className="text-sm font-bold text-white tracking-wide">Stream published successfully</h2>
+        <p className="text-xs text-white/50 mt-1">
+          <span className="text-white font-medium">{data?.title || "Your asset"}</span> is now indexed.
         </p>
 
-          <div className="flex flex-col gap-2 mt-6">
-            {data?.id && (
-              <a
-                className="w-full py-2.5 bg-white hover:bg-white/85 text-black rounded-xl text-xs font-bold transition text-center"
-              >
-                View video
-              </a>
-            )}
-            <button
-              onClick={onUploadAnother}
-              className="w-full py-2.5 border border-white/15 hover:border-white/30 text-white/70 hover:text-white rounded-xl text-xs font-semibold transition cursor-pointer"
-            >
-              Upload another
-            </button>
+        {/* Video Preview Box inside Modal */}
+        {data?.id && (
+          <div className="my-4 relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 group">
+            <video
+              src={`http://localhost:5000/api/videos/${data.id}/stream`}
+              controls
+              playsInline
+              className="w-full h-full object-cover"
+            />
           </div>
+        )}
+
+        <div className="flex flex-col gap-2 mt-2">
+          {data?.id && (
+            <button
+              onClick={() => onViewVideo(data.id)}
+              className="w-full py-2.5 bg-white hover:bg-white/85 text-black rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-white/5"
+            >
+              Open in Watch View <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            onClick={onUploadAnother}
+            className="w-full py-2.5 border border-white/15 hover:border-white/30 text-white/70 hover:text-white rounded-xl text-xs font-semibold transition cursor-pointer"
+          >
+            Upload another asset
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function VideoUpload() {
+  const navigate = useNavigate();
+
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [title, setTitle] = useState("");
@@ -136,6 +152,19 @@ export default function VideoUpload() {
       return;
     }
 
+    if (visibility === 'schedule') {
+      if (!scheduledFor) {
+        setError("Please pick a valid date and time for scheduling.");
+        return;
+      }
+      const selectedTime = new Date(scheduledFor).getTime();
+      const now = new Date().getTime();
+      if (selectedTime <= now) {
+        setError("Scheduled time must be set in the future.");
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append("video", file);
     formData.append("title", title || file.name);
@@ -145,6 +174,7 @@ export default function VideoUpload() {
     formData.append("isMadeForKids", isMadeForKids);
     formData.append("ageRestricted", ageRestricted);
     formData.append("visibility", visibility);
+    
     if (visibility === 'schedule' && scheduledFor) {
       formData.append("scheduledFor", scheduledFor);
     }
@@ -160,9 +190,8 @@ export default function VideoUpload() {
         setProgress(percentCompleted);
       });
 
-      // Hold at 100% briefly so the bar is visible even on fast/local uploads
       setProgress(100);
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      await new Promise((resolve) => setTimeout(resolve, 400));
 
       setUploadedData(data);
       setShowSuccess(true);
@@ -182,26 +211,26 @@ export default function VideoUpload() {
       {/* Header */}
       <div className="mb-6">
         <span className="text-[10px] tracking-[0.3em] text-white/40 font-bold" style={MONO}>
-          STUDIO
+          STUDIO PIPELINE
         </span>
-        <h1 className="text-2xl font-bold text-white mt-1.5">Upload console</h1>
-        <p className="text-xs text-white/40 mt-1">Push a new asset through the pipeline — source to release.</p>
+        <h1 className="text-2xl font-bold text-white mt-1">Upload Console</h1>
+        <p className="text-xs text-white/40 mt-0.5">Push a new video asset through the stream pipeline.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="border border-white/10 rounded-2xl p-6 sm:p-7">
+      <form onSubmit={handleSubmit} className="border border-white/10 rounded-2xl p-6 sm:p-7 bg-[#0A0A0B]/60 backdrop-blur-xl shadow-2xl">
 
         {/* Stage 01 — Source */}
         <div className="flex gap-4">
           <StageNode number="01" done={!!file} />
           <div className="flex-1 pb-7">
-            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>SOURCE</span>
+            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>SOURCE ASSET</span>
 
             <label
               onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
               onDragLeave={() => setDragActive(false)}
               onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFile(e.dataTransfer.files[0]); }}
               className={`mt-2.5 flex flex-col items-center justify-center gap-1.5 border border-dashed rounded-xl py-8 cursor-pointer transition ${
-                dragActive ? 'border-white/60 bg-white/5' : 'border-white/15 hover:border-white/30'
+                dragActive ? 'border-white/60 bg-white/5' : 'border-white/15 hover:border-white/30 bg-white/[0.01]'
               }`}
             >
               <input
@@ -212,17 +241,17 @@ export default function VideoUpload() {
               />
               {file ? (
                 <>
-                  <span className="flex items-center gap-2 text-[#3DDC84] text-[11px] font-semibold" style={MONO}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#3DDC84] animate-pulse" />
+                  <span className="flex items-center gap-2 text-emerald-400 text-[11px] font-semibold" style={MONO}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     ASSET LOADED
                   </span>
-                  <span className="text-xs text-white mt-0.5">{file.name}</span>
+                  <span className="text-xs text-white mt-0.5 font-medium">{file.name}</span>
                   <span className="text-[10px] text-white/30">Drop another file to replace</span>
                 </>
               ) : (
                 <>
                   <UploadCloud className="w-5 h-5 text-white/30" />
-                  <span className="text-xs text-white/60 mt-0.5">Drag a video file here, or click to browse</span>
+                  <span className="text-xs text-white/60 mt-0.5">Drag & drop your video file here, or browse</span>
                   <span className="text-[10px] text-white/30">MP4, MOV, WEBM</span>
                 </>
               )}
@@ -234,7 +263,7 @@ export default function VideoUpload() {
         <div className="flex gap-4">
           <StageNode number="02" done={title.trim().length > 0} />
           <div className="flex-1 pb-7 space-y-3.5">
-            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>DETAILS</span>
+            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>METADATA DETAILS</span>
 
             <div>
               <label className="block mb-1 text-xs font-medium text-white/40">Title</label>
@@ -267,11 +296,11 @@ export default function VideoUpload() {
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full p-2.5 bg-white/[0.03] border border-white/10 rounded-xl text-xs text-white outline-none focus:border-white/40 transition cursor-pointer"
                 >
-                  <option value="Technology">Technology & Code</option>
-                  <option value="System Architecture">System Architecture</option>
-                  <option value="Music">Music & Beats</option>
-                  <option value="Gaming">Gaming</option>
-                  <option value="Education">Education</option>
+                  <option value="Technology" className="bg-[#0A0A0B]">Technology & Code</option>
+                  <option value="System Architecture" className="bg-[#0A0A0B]">System Architecture</option>
+                  <option value="Music" className="bg-[#0A0A0B]">Music & Beats</option>
+                  <option value="Gaming" className="bg-[#0A0A0B]">Gaming</option>
+                  <option value="Education" className="bg-[#0A0A0B]">Education</option>
                 </select>
               </div>
               <div>
@@ -292,7 +321,7 @@ export default function VideoUpload() {
         <div className="flex gap-4">
           <StageNode number="03" done={isMadeForKids || ageRestricted} />
           <div className="flex-1 pb-7 space-y-3">
-            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>AUDIENCE</span>
+            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>AUDIENCE CONFIG</span>
             <div className="pt-0.5 space-y-3">
               <ToggleSwitch id="kids" checked={isMadeForKids} onChange={setIsMadeForKids}>
                 Made for kids
@@ -308,7 +337,7 @@ export default function VideoUpload() {
         <div className="flex gap-4">
           <StageNode number="04" last done={visibility !== "private"} />
           <div className="flex-1 space-y-3.5">
-            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>RELEASE</span>
+            <span className="text-[10px] tracking-[0.2em] text-white/40 font-bold" style={MONO}>RELEASE SETTINGS</span>
 
             <div className="grid grid-cols-3 gap-2">
               {[
@@ -322,7 +351,7 @@ export default function VideoUpload() {
                   onClick={() => setVisibility(key)}
                   className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer ${
                     visibility === key
-                      ? 'bg-white/10 border-white/40 text-white'
+                      ? 'bg-white/10 border-white/40 text-white shadow-sm'
                       : 'bg-white/[0.03] border-white/10 text-white/40 hover:border-white/20'
                   }`}
                 >
@@ -333,16 +362,19 @@ export default function VideoUpload() {
             </div>
 
             {visibility === 'schedule' && (
-              <input
-                type="datetime-local"
-                value={scheduledFor}
-                onChange={(e) => setScheduledFor(e.target.value)}
-                className="w-full p-2.5 bg-white/[0.03] border border-white/10 rounded-xl text-xs text-white outline-none focus:border-white/40"
-              />
+              <div className="space-y-1">
+                <label className="block text-[11px] text-white/40">Select release date and time</label>
+                <input
+                  type="datetime-local"
+                  value={scheduledFor}
+                  onChange={(e) => setScheduledFor(e.target.value)}
+                  className="w-full p-2.5 bg-white/[0.03] border border-white/10 rounded-xl text-xs text-white outline-none focus:border-white/40"
+                />
+              </div>
             )}
 
             {error && (
-              <div className="p-2.5 bg-[#FF3B30]/10 border border-[#FF3B30]/25 rounded-xl text-[#FF6B60] text-xs">
+              <div className="p-2.5 bg-red-500/10 border border-red-500/25 rounded-xl text-red-400 text-xs">
                 {error}
               </div>
             )}
@@ -355,7 +387,7 @@ export default function VideoUpload() {
               {loading ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-black animate-pulse" />
-                  {progress < 100 ? `PUBLISHING · ${progress}%` : "FINALIZING..."}
+                  {progress < 100 ? `UPLOADING · ${progress}%` : "FINALIZING PIPELINE..."}
                 </>
               ) : (
                 <>
@@ -365,11 +397,11 @@ export default function VideoUpload() {
             </button>
 
             {loading && (
-              <div className="flex gap-[3px]">
+              <div className="flex gap-[3px] pt-1">
                 {Array.from({ length: segments }).map((_, i) => (
                   <div
                     key={i}
-                    className={`h-2 flex-1 rounded-sm transition-colors duration-150 ${
+                    className={`h-1.5 flex-1 rounded-sm transition-colors duration-150 ${
                       i < filledSegments ? 'bg-white' : 'bg-white/10'
                     }`}
                   />
@@ -386,6 +418,7 @@ export default function VideoUpload() {
           data={uploadedData}
           onClose={() => setShowSuccess(false)}
           onUploadAnother={resetForm}
+          onViewVideo={(id) => navigate(`/watch/${id}`)}
         />
       )}
     </div>
