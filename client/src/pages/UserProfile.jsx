@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { fetchVideos, deleteVideo } from '../services/api';
-import { Settings, Video, Users, Sparkles, CheckCircle2, Eye, MoreVertical, Trash2, Pencil, X, Loader2, Camera, Image as ImageIcon } from 'lucide-react';
+import { fetchVideos, deleteVideo, updateUserProfile } from '../services/api';
+import { Settings, Video, Users, Sparkles, CheckCircle2, Eye, MoreVertical, Trash2, Pencil, X, Loader2, Camera } from 'lucide-react';
 
 export default function UserProfile() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth(); // setUser agar available ho context mein
+  
   const channelName = user?.channelName || "Elisha Jameel";
   const email = user?.email || "elisha@example.com";
-  const initial = channelName[0].toUpperCase();
+  const initial = channelName ? channelName[0].toUpperCase() : "E";
 
   const [activeTab, setActiveTab] = useState("videos");
   const [videos, setVideos] = useState([]);
@@ -17,22 +18,35 @@ export default function UserProfile() {
   const [deletingId, setDeletingId] = useState(null);
   const [showCustomize, setShowCustomize] = useState(false);
   
-  // Customization state for live preview
-  const [bannerUrl, setBannerUrl] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
+  // Real database/user states initialization
+  const [bannerUrl, setBannerUrl] = useState(user?.bannerUrl || "");
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
+  const [subscriberCount, setSubscriberCount] = useState(1400);
+
+  // Sync when user object updates from AuthContext
+  useEffect(() => {
+    if (user) {
+      if (user.bannerUrl) setBannerUrl(user.bannerUrl);
+      if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadMyVideos();
-  }, []);
+  }, [user]);
 
   const loadMyVideos = async () => {
     setLoading(true);
     try {
       const data = await fetchVideos();
-      const mine = user?.id
-        ? data.filter((v) => v.user?.id === user.id || v.userId === user.id)
-        : data;
-      setVideos(mine.length > 0 ? mine : data);
+      // Filter videos safely by matching userId or fallback
+      if (user?.id) {
+        const mine = data.filter((v) => v.userId === user.id || v.user?.id === user.id);
+        // Agar user ki apni koi video milti hai toh woh dikhao, warna agar database mein user ki ID alag format ki ho toh sab dikha do taake blank na lage
+        setVideos(mine.length > 0 ? mine : data);
+      } else {
+        setVideos(data);
+      }
     } catch (err) {
       console.error("Failed to load videos", err);
       setVideos([]);
@@ -59,7 +73,7 @@ export default function UserProfile() {
       {/* Channel Banner */}
       <div className="h-48 md:h-60 border-b border-white/10 relative overflow-hidden bg-[#181622]">
         {bannerUrl ? (
-          <img src={bannerUrl} alt="Channel Banner" className="w-full h-full object-cover opacity-80" />
+          <img src={bannerUrl} alt="Channel Banner" className="w-full h-full object-cover opacity-85" />
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-violet-600/20 via-[#13111C] to-[#0B0910]"></div>
         )}
@@ -79,7 +93,7 @@ export default function UserProfile() {
             </div>
             <button 
               onClick={() => setShowCustomize(true)}
-              className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer text-white"
+              className="absolute inset-0 bg-black/60 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer text-white"
             >
               <Camera className="w-6 h-6" />
             </button>
@@ -99,13 +113,13 @@ export default function UserProfile() {
             <p className="text-xs text-zinc-400 mt-1.5 flex items-center justify-center md:justify-start gap-2">
               <span className="font-mono text-violet-400">@{email.split('@')[0]}</span>
               <span>•</span>
-              <span className="text-zinc-300 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-violet-400" /> 1.4K subscribers</span>
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-violet-400" /> {subscriberCount} subscribers</span>
               <span>•</span>
               <span className="text-zinc-400">{videos.length} videos</span>
             </p>
 
             <p className="text-xs text-zinc-400 mt-3 max-w-2xl leading-relaxed">
-              Full-stack developer engineering scalable systems, high-performance video streaming pipelines, and modern web applications.
+              {user?.bio || "Full-stack developer engineering scalable systems, high-performance video streaming pipelines, and modern web applications."}
             </p>
           </div>
 
@@ -190,9 +204,9 @@ export default function UserProfile() {
                           {vid.title}
                         </h3>
                         <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-1.5">
-                          <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-violet-400" /> {vid.views || '12K views'}</span>
+                          <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-violet-400" /> {vid.views || 0} views</span>
                           <span>•</span>
-                          <span>2 days ago</span>
+                          <span>Recently</span>
                         </div>
                       </div>
 
@@ -246,6 +260,8 @@ export default function UserProfile() {
       {/* Customize Channel Modal */}
       {showCustomize && (
         <CustomizeChannelModal
+          user={user}
+          setUser={setUser}
           channelName={channelName}
           bannerUrl={bannerUrl}
           setBannerUrl={setBannerUrl}
@@ -258,9 +274,9 @@ export default function UserProfile() {
   );
 }
 
-function CustomizeChannelModal({ channelName, bannerUrl, setBannerUrl, avatarUrl, setAvatarUrl, onClose }) {
+function CustomizeChannelModal({ user, setUser, channelName, bannerUrl, setBannerUrl, avatarUrl, setAvatarUrl, onClose }) {
   const [name, setName] = useState(channelName);
-  const [bio, setBio] = useState("Full-stack developer engineering scalable systems, video streaming platforms, and modern web applications.");
+  const [bio, setBio] = useState(user?.bio || "");
   const [tempBanner, setTempBanner] = useState(bannerUrl);
   const [tempAvatar, setTempAvatar] = useState(avatarUrl);
   const [saving, setSaving] = useState(false);
@@ -268,14 +284,23 @@ function CustomizeChannelModal({ channelName, bannerUrl, setBannerUrl, avatarUrl
   const handleSave = async () => {
     setSaving(true);
     try {
-      setBannerUrl(tempBanner);
-      setAvatarUrl(tempAvatar);
-      setTimeout(() => {
-        setSaving(false);
-        onClose();
-      }, 500);
+      const token = localStorage.getItem('token');
+      const response = await updateUserProfile({ channelName: name, bio, avatarUrl: tempAvatar, bannerUrl: tempBanner });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update");
+
+      // Update local and context state
+      setBannerUrl(data.user.bannerUrl);
+      setAvatarUrl(data.user.avatarUrl);
+      if (setUser && data.user) {
+        setUser(data.user);
+      }
+
+      onClose();
     } catch (err) {
       console.error("Failed to update profile", err);
+      alert(err.message || "Error updating profile");
+    } finally {
       setSaving(false);
     }
   };
@@ -308,19 +333,17 @@ function CustomizeChannelModal({ channelName, bannerUrl, setBannerUrl, avatarUrl
 
           <div>
             <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Banner Image URL</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={tempBanner}
-                onChange={(e) => setTempBanner(e.target.value)}
-                placeholder="https://example.com/banner.jpg"
-                className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
-              />
-            </div>
+            <input
+              type="text"
+              value={tempBanner}
+              onChange={(e) => setTempBanner(e.target.value)}
+              placeholder="https://example.com/banner.jpg"
+              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
+            />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Avatar Image URL</label>
+            <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Avatar / Profile Image URL</label>
             <input
               type="text"
               value={tempAvatar}

@@ -50,3 +50,8 @@ export const incrementVideoView = async (videoId) => {
   const response = await API.post(`/videos/${videoId}/view`);
   return response.data;
 };
+
+export const updateUserProfile = async (profileData) => {
+  const response = await API.put('/users/profile', profileData);
+  return response.data;
+}
