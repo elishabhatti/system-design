@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import Hls from "hls.js";
 import {
   Play,
   Pause,
@@ -46,6 +47,34 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const [loading, setLoading] = useState(true);
 
   const hideTimer = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src) return;
+
+    let hls = null;
+
+    if (src.includes(".m3u8")) {
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = src;
+      } else if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(src);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log("HLS Manifest parsed successfully inside custom player");
+        });
+      }
+    } else {
+      video.src = src;
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [src]);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
@@ -159,55 +188,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     }, 2500);
   }, [playing]);
 
-  useEffect(() => {
-    const handleKey = (e) => {
-      if (
-        !containerRef.current?.contains(document.activeElement) &&
-        document.activeElement !== document.body
-      )
-        return;
-      switch (e.key) {
-        case " ":
-        case "k":
-          e.preventDefault();
-          togglePlay();
-          break;
-        case "ArrowRight":
-          skip(5);
-          break;
-        case "ArrowLeft":
-          skip(-5);
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setVolume((v) => {
-            const nv = Math.min(v + 0.1, 1);
-            videoRef.current.volume = nv;
-            return nv;
-          });
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          setVolume((v) => {
-            const nv = Math.max(v - 0.1, 0);
-            videoRef.current.volume = nv;
-            return nv;
-          });
-          break;
-        case "f":
-          toggleFullscreen();
-          break;
-        case "m":
-          toggleMute();
-          break;
-        default:
-          break;
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [togglePlay, skip]);
-
   // Video Events Listener
   useEffect(() => {
     const v = videoRef.current;
@@ -265,8 +245,8 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     >
       <video
         ref={videoRef}
-        src={src}
         poster={poster}
+        playsInline
         className="w-full h-full object-contain"
         onClick={togglePlay}
       />
