@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchVideos, deleteVideo } from '../services/api';
-import { Settings, Video, Users, Sparkles, CheckCircle2, Eye, MoreVertical, Trash2, Pencil, X, Loader2 } from 'lucide-react';
+import { Settings, Video, Users, Sparkles, CheckCircle2, Eye, MoreVertical, Trash2, Pencil, X, Loader2, Camera, Image as ImageIcon } from 'lucide-react';
 
 export default function UserProfile() {
   const { user } = useAuth();
@@ -16,6 +16,10 @@ export default function UserProfile() {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [showCustomize, setShowCustomize] = useState(false);
+  
+  // Customization state for live preview
+  const [bannerUrl, setBannerUrl] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
 
   useEffect(() => {
     loadMyVideos();
@@ -51,155 +55,169 @@ export default function UserProfile() {
   };
 
   return (
-    <div className="min-h-[95vh] text-zinc-100  selection:bg-violet-500 selection:text-white">
-      <div className="h-44  border-b border-white/10 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-violet-500/10 via-transparent to-transparent"></div>
+    <div className="min-h-[95vh] text-zinc-100 selection:bg-violet-500 selection:text-white pb-20">
+      {/* Channel Banner */}
+      <div className="h-48 md:h-60 border-b border-white/10 relative overflow-hidden bg-[#181622]">
+        {bannerUrl ? (
+          <img src={bannerUrl} alt="Channel Banner" className="w-full h-full object-cover opacity-80" />
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-violet-600/20 via-[#13111C] to-[#0B0910]"></div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0910] via-transparent to-transparent opacity-60"></div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-6 -mt-12 relative z-10 pb-8 border-b border-white/10">
-          <div className="w-24 h-24 rounded-2xl bg-[#0F0F0F] flex items-center justify-center text-2xl font-bold shadow-2xl text-white shrink-0">
-            {initial}
+        {/* Channel Header Profile Section */}
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-6 -mt-16 md:-mt-20 relative z-10 pb-8 border-b border-white/10">
+          <div className="relative group">
+            <div className="w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-[#1F1D2C] border-4 border-[#0B0910] flex items-center justify-center text-3xl font-extrabold shadow-2xl text-white shrink-0 overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="bg-gradient-to-br from-violet-400 to-indigo-600 bg-clip-text text-transparent">{initial}</span>
+              )}
+            </div>
+            <button 
+              onClick={() => setShowCustomize(true)}
+              className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer text-white"
+            >
+              <Camera className="w-6 h-6" />
+            </button>
           </div>
 
           <div className="text-center md:text-left pt-2 flex-1">
             <div className="flex flex-col md:flex-row md:items-center gap-2">
-              <h1 className="text-xl font-bold tracking-wide text-zinc-100 flex items-center justify-center md:justify-start gap-1.5">
+              <h1 className="text-2xl font-black tracking-tight text-zinc-100 flex items-center justify-center md:justify-start gap-2">
                 {channelName}
-                <CheckCircle2 className="w-4 h-4 text-white fill-violet-400/20" />
+                <CheckCircle2 className="w-5 h-5 text-violet-400 fill-violet-400/20" />
               </h1>
-              <span className="bg-white border border-white/10 text-black text-[10px] font-semibold px-2.5 py-0.5 rounded-full w-fit mx-auto md:mx-0">
-                Pro Creator
+              <span className="bg-violet-500/10 border border-violet-500/20 text-violet-300 text-[10px] font-bold px-3 py-1 rounded-full w-fit mx-auto md:mx-0 shadow-inner">
+                PRO CREATOR
               </span>
             </div>
 
-            <p className="text-xs text-zinc-400 mt-1 flex items-center justify-center md:justify-start gap-2">
-              <span>@{email.split('@')[0]}</span>
+            <p className="text-xs text-zinc-400 mt-1.5 flex items-center justify-center md:justify-start gap-2">
+              <span className="font-mono text-violet-400">@{email.split('@')[0]}</span>
               <span>•</span>
-              <span className="text-zinc-300 font-medium flex items-center gap-1"><Users className="w-3 h-3 text-white" /> 1.4K subscribers</span>
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-violet-400" /> 1.4K subscribers</span>
+              <span>•</span>
+              <span className="text-zinc-400">{videos.length} videos</span>
             </p>
 
-            <p className="text-xs text-zinc-400 mt-2 max-w-xl leading-relaxed">
-              Full-stack developer engineering scalable systems, video streaming platforms, and modern web applications.
+            <p className="text-xs text-zinc-400 mt-3 max-w-2xl leading-relaxed">
+              Full-stack developer engineering scalable systems, high-performance video streaming pipelines, and modern web applications.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 pt-4 md:pt-2">
+          <div className="flex items-center gap-3 pt-4 md:pt-4">
             <button
               onClick={() => setShowCustomize(true)}
-              className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-violet-500/20 transition duration-300 cursor-pointer"
+              className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-2xl text-xs font-semibold shadow-lg shadow-violet-600/30 transition duration-300 cursor-pointer active:scale-95"
             >
-              <Sparkles className="w-3.5 h-3.5" /> Customize Channel
+              <Sparkles className="w-4 h-4" /> Customize Channel
             </button>
-            <button className="p-2 rounded-xl bg-white border border-white/10 text-zinc-400 hover:text-zinc-200 hover:border-white/20 transition cursor-pointer">
+            <button 
+              onClick={() => setShowCustomize(true)}
+              className="p-2.5 rounded-2xl bg-[#1F1D2C] border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition cursor-pointer"
+            >
               <Settings className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 pt-4 border-b border-white/10 mb-6 text-xs font-semibold">
-          <button
-            onClick={() => setActiveTab("videos")}
-            className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition ${
-              activeTab === "videos" ? "border-white text-white" : "border-transparent text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            <Video className="w-4 h-4" /> Videos & Uploads
-          </button>
-          <button
-            onClick={() => setActiveTab("analytics")}
-            className={`pb-3 border-b-2 cursor-pointer transition ${
-              activeTab === "analytics" ? "border-white text-white" : "border-transparent text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            Analytics
-          </button>
-          <button
-            onClick={() => setActiveTab("playlists")}
-            className={`pb-3 border-b-2 cursor-pointer transition ${
-              activeTab === "playlists" ? "border-white text-white" : "border-transparent text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            Playlists
-          </button>
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-8 pt-6 border-b border-white/10 mb-8 text-xs font-semibold">
+          {["videos", "analytics", "playlists"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-3 border-b-2 capitalize transition cursor-pointer flex items-center gap-2 ${
+                activeTab === tab ? "border-violet-500 text-white font-bold" : "border-transparent text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              {tab === "videos" && <Video className="w-4 h-4 text-violet-400" />}
+              {tab}
+            </button>
+          ))}
         </div>
 
-        {/* Videos & Uploads Tab */}
+        {/* Videos Tab Content */}
         {activeTab === "videos" && (
           <>
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-24">
-                <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
-                <p className="text-xs text-zinc-400 mt-3">Loading your videos...</p>
+              <div className="flex flex-col items-center justify-center py-28">
+                <Loader2 className="w-7 h-7 text-violet-500 animate-spin" />
+                <p className="text-xs text-zinc-400 mt-3 font-medium">Loading your masterpieces...</p>
               </div>
             ) : videos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <Video className="w-8 h-8 text-zinc-600 mb-3" />
-                <p className="text-sm text-zinc-300 font-medium">No videos uploaded yet</p>
-                <p className="text-xs text-zinc-500 mt-1">Your uploads will show up here.</p>
+              <div className="flex flex-col items-center justify-center py-28 text-center bg-[#15131D] rounded-3xl border border-white/5 p-8">
+                <Video className="w-10 h-10 text-violet-500/50 mb-3" />
+                <p className="text-sm text-zinc-200 font-semibold">No videos uploaded yet</p>
+                <p className="text-xs text-zinc-500 mt-1 max-w-sm">Share your video streaming projects or tutorials with the world.</p>
                 <Link
                   to="/create"
-                  className="mt-4 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold px-4 py-2 rounded-full transition cursor-pointer"
+                  className="mt-5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold px-5 py-2.5 rounded-2xl transition shadow-lg shadow-violet-600/20 cursor-pointer"
                 >
                   Upload your first video
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-10">
                 {videos.map((vid) => (
-                  <div key={vid.id} className="group flex flex-col gap-2 rounded-2xl p-2 border border-transparent hover:border-white/10 hover:bg-[#26233A] transition-all">
-                    <Link to={`/watch/${vid.id}`} className="aspect-video bg-[#26233A] rounded-xl overflow-hidden relative shadow-md border border-white/5 block">
-                      <video src={vid.filepath} className="w-full h-full object-cover" muted />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                  <div key={vid.id} className="group flex flex-col gap-2.5 rounded-2xl p-2.5 bg-[#15131D] border border-white/5 hover:border-violet-500/30 hover:bg-[#1A1726] transition-all shadow-xl">
+                    <Link to={`/watch/${vid.id}`} className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-inner block">
+                      <video src={vid.filepath} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" muted />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                       {vid.isLive ? (
-                        <span className="absolute top-2 left-2 flex items-center gap-1 bg-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded text-white">
+                        <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-red-600 text-[10px] font-bold px-2 py-0.5 rounded-md text-white shadow">
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
                         </span>
                       ) : (
-                        <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-[11px] font-medium px-1.5 py-0.5 rounded text-white">
+                        <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md text-[11px] font-mono font-medium px-2 py-0.5 rounded text-white">
                           {vid.duration || '5:31'}
                         </span>
                       )}
                       {deletingId === vid.id && (
-                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-10">
+                          <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
                         </div>
                       )}
                     </Link>
 
-                    <div className="flex items-start justify-between gap-2 px-0.5">
+                    <div className="flex items-start justify-between gap-2 px-1">
                       <div className="overflow-hidden">
-                        <h3 className="font-semibold text-zinc-100 text-sm tracking-tight line-clamp-2 leading-snug">
+                        <h3 className="font-semibold text-zinc-100 text-xs tracking-tight line-clamp-2 leading-relaxed group-hover:text-violet-300 transition">
                           {vid.title}
                         </h3>
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-500 mt-1">
-                          <Eye className="w-3 h-3" />
-                          <span>{vid.views || '12K views'}</span>
+                        <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-1.5">
+                          <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-violet-400" /> {vid.views || '12K views'}</span>
+                          <span>•</span>
+                          <span>2 days ago</span>
                         </div>
                       </div>
 
                       <div className="relative shrink-0">
                         <button
                           onClick={() => setOpenMenuId(openMenuId === vid.id ? null : vid.id)}
-                          className="text-zinc-500 hover:text-white transition p-1 cursor-pointer"
+                          className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition cursor-pointer"
                         >
                           <MoreVertical className="w-4 h-4" />
                         </button>
 
                         {openMenuId === vid.id && (
-                          <div className="absolute right-0 top-7 bg-[#1c1c22] border border-white/10 rounded-lg py-1 w-32 shadow-xl z-20">
+                          <div className="absolute right-0 top-8 bg-[#1F1D2C] border border-white/10 rounded-xl py-1.5 w-36 shadow-2xl z-20">
                             <Link
                               to={`/edit/${vid.id}`}
                               onClick={() => setOpenMenuId(null)}
-                              className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-white/5 transition"
+                              className="flex items-center gap-2 px-3.5 py-2 text-xs text-zinc-300 hover:bg-violet-600/20 hover:text-white transition"
                             >
-                              <Pencil className="w-3.5 h-3.5" /> Edit
+                              <Pencil className="w-3.5 h-3.5 text-violet-400" /> Edit Details
                             </Link>
                             <button
                               onClick={() => handleDelete(vid.id)}
-                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-red-400 hover:bg-white/5 transition cursor-pointer"
+                              className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-red-400 hover:bg-red-500/10 transition cursor-pointer"
                             >
-                              <Trash2 className="w-3.5 h-3.5" /> Delete
+                              <Trash2 className="w-3.5 h-3.5" /> Delete Video
                             </button>
                           </div>
                         )}
@@ -212,17 +230,15 @@ export default function UserProfile() {
           </>
         )}
 
-        {/* Analytics Tab */}
         {activeTab === "analytics" && (
-          <div className="py-16 text-center text-zinc-500 text-xs">
-            Analytics dashboard coming soon.
+          <div className="py-20 text-center text-zinc-500 text-xs bg-[#15131D] rounded-3xl border border-white/5">
+            📊 Creator Analytics & Real-time Graph Visualizer coming soon.
           </div>
         )}
 
-        {/* Playlists Tab */}
         {activeTab === "playlists" && (
-          <div className="py-16 text-center text-zinc-500 text-xs">
-            No playlists created yet.
+          <div className="py-20 text-center text-zinc-500 text-xs bg-[#15131D] rounded-3xl border border-white/5">
+            📁 No custom playlists organized yet.
           </div>
         )}
       </div>
@@ -231,6 +247,10 @@ export default function UserProfile() {
       {showCustomize && (
         <CustomizeChannelModal
           channelName={channelName}
+          bannerUrl={bannerUrl}
+          setBannerUrl={setBannerUrl}
+          avatarUrl={avatarUrl}
+          setAvatarUrl={setAvatarUrl}
           onClose={() => setShowCustomize(false)}
         />
       )}
@@ -238,73 +258,103 @@ export default function UserProfile() {
   );
 }
 
-function CustomizeChannelModal({ channelName, onClose }) {
+function CustomizeChannelModal({ channelName, bannerUrl, setBannerUrl, avatarUrl, setAvatarUrl, onClose }) {
   const [name, setName] = useState(channelName);
   const [bio, setBio] = useState("Full-stack developer engineering scalable systems, video streaming platforms, and modern web applications.");
+  const [tempBanner, setTempBanner] = useState(bannerUrl);
+  const [tempAvatar, setTempAvatar] = useState(avatarUrl);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // TODO: wire to actual update-profile endpoint
-      // await updateProfile({ channelName: name, bio });
-      onClose();
+      setBannerUrl(tempBanner);
+      setAvatarUrl(tempAvatar);
+      setTimeout(() => {
+        setSaving(false);
+        onClose();
+      }, 500);
     } catch (err) {
       console.error("Failed to update profile", err);
-    } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div
-        className="bg-[#26233A] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl"
+        className="bg-[#181622] border border-white/10 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-bold text-white">Customize Channel</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white transition cursor-pointer">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-violet-400" /> Customize Channel Studio
+          </h2>
+          <button onClick={onClose} className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
           <div>
             <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Channel Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-[#1F1D2C] border border-white/10 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-zinc-100 outline-none transition"
+              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Bio</label>
+            <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Banner Image URL</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tempBanner}
+                onChange={(e) => setTempBanner(e.target.value)}
+                placeholder="https://example.com/banner.jpg"
+                className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Avatar Image URL</label>
+            <input
+              type="text"
+              value={tempAvatar}
+              onChange={(e) => setTempAvatar(e.target.value)}
+              placeholder="https://example.com/avatar.jpg"
+              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-zinc-400 mb-1.5 block">Channel Bio / About</label>
             <textarea
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              rows={4}
-              className="w-full bg-[#1F1D2C] border border-white/10 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-zinc-100 outline-none transition resize-none"
+              rows={3}
+              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition resize-none"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 mt-6">
+        <div className="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-white/10">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-zinc-300 hover:bg-white/5 transition cursor-pointer"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer"
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-lg shadow-violet-600/30 cursor-pointer"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Save changes
+            Save Changes
           </button>
         </div>
       </div>

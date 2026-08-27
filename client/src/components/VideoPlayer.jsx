@@ -11,6 +11,7 @@ import {
   PictureInPicture2,
   RotateCcw,
   RotateCw,
+  Check,
 } from "lucide-react";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -37,7 +38,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -46,35 +46,54 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const [seekFlash, setSeekFlash] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const hideTimer = useRef(null);
+  // 🎛️ Settings Menu & Quality States
+  const [activeMenu, setActiveMenu] = useState(null); // 'main', 'speed', 'quality'
+  const [levels, setLevels] = useState([]);
+  const [currentLevel, setCurrentLevel] = useState(-1); // -1 means Auto
 
+  const hideTimer = useRef(null);
+  const hlsRef = useRef(null);
+
+  // 🌐 HLS.js integration with Quality Levels detection
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
-
-    let hls = null;
 
     if (src.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
       } else if (Hls.isSupported()) {
-        hls = new Hls();
+        const hls = new Hls();
+        hlsRef.current = hls;
         hls.loadSource(src);
         hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log("HLS Manifest parsed successfully inside custom player");
+
+        hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+          console.log("HLS Manifest parsed, levels found:", data.levels);
+          setLevels(data.levels);
+          setCurrentLevel(hls.currentLevel); // Usually -1 (Auto)
         });
+
+        hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+          setCurrentLevel(data.level);
+        });
+
+        return () => {
+          hls.destroy();
+        };
       }
     } else {
       video.src = src;
     }
-
-    return () => {
-      if (hls) {
-        hls.destroy();
-      }
-    };
   }, [src]);
+
+  const changeQuality = (index) => {
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = index; // -1 for Auto, or 0, 1, 2... for specific height
+      setCurrentLevel(index);
+    }
+    setActiveMenu(null);
+  };
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
@@ -151,7 +170,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const changeSpeed = (s) => {
     videoRef.current.playbackRate = s;
     setSpeed(s);
-    setShowSpeedMenu(false);
+    setActiveMenu(null);
   };
 
   const toggleFullscreen = () => {
@@ -184,7 +203,10 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     setControlsVisible(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
-      if (playing) setControlsVisible(false);
+      if (playing) {
+        setControlsVisible(false);
+        setActiveMenu(null);
+      }
     }, 2500);
   }, [playing]);
 
@@ -241,7 +263,12 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
       ref={containerRef}
       className="relative w-full aspect-video bg-black overflow-hidden group/player select-none"
       onMouseMove={resetHideTimer}
-      onMouseLeave={() => playing && setControlsVisible(false)}
+      onMouseLeave={() => {
+        if (playing) {
+          setControlsVisible(false);
+          setActiveMenu(null);
+        }
+      }}
     >
       <video
         ref={videoRef}
@@ -382,23 +409,87 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
           </div>
 
           <div className="flex items-center gap-3 relative">
+            {/* ⚙️ Settings / Gear Menu */}
             <div className="relative">
               <button
-                onClick={() => setShowSpeedMenu((s) => !s)}
-                className="flex items-center gap-1 hover:text-violet-400 transition text-[11px] font-mono cursor-pointer"
+                onClick={() => setActiveMenu(activeMenu === 'main' ? null : 'main')}
+                className="flex items-center hover:text-violet-400 transition cursor-pointer p-1"
+                title="Settings"
               >
-                <Settings className="w-4 h-4" />
-                {speed}x
+                <Settings className="w-4.5 h-4.5" />
               </button>
-              {showSpeedMenu && (
-                <div className="absolute bottom-8 right-0 bg-[#1c1c22] border border-white/10 rounded-lg py-1.5 w-20 shadow-xl z-20">
+
+              {/* Main Settings Popover */}
+              {activeMenu === 'main' && (
+                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-44 shadow-2xl z-20 text-xs">
+                  <button
+                    onClick={() => setActiveMenu('speed')}
+                    className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200"
+                  >
+                    <span>Playback Speed</span>
+                    <span className="font-mono text-white/50">{speed}x</span>
+                  </button>
+
+                  {levels.length > 0 && (
+                    <button
+                      onClick={() => setActiveMenu('quality')}
+                      className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200"
+                    >
+                      <span>Quality</span>
+                      <span className="font-mono text-white/50">
+                        {currentLevel === -1 ? "Auto" : `${levels[currentLevel]?.height}p`}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Speed Sub-menu */}
+              {activeMenu === 'speed' && (
+                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
+                  <button
+                    onClick={() => setActiveMenu('main')}
+                    className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]"
+                  >
+                    ← BACK
+                  </button>
                   {SPEEDS.map((s) => (
                     <button
                       key={s}
                       onClick={() => changeSpeed(s)}
-                      className={`w-full text-left px-3 py-1 text-[11px] font-mono hover:bg-violet-600/20 transition cursor-pointer ${s === speed ? "text-violet-400 font-bold" : "text-zinc-300"}`}
+                      className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${s === speed ? "text-violet-400 font-bold" : "text-zinc-300"}`}
                     >
-                      {s}x
+                      <span>{s}x</span>
+                      {s === speed && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Quality Sub-menu */}
+              {activeMenu === 'quality' && (
+                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
+                  <button
+                    onClick={() => setActiveMenu('main')}
+                    className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]"
+                  >
+                    ← BACK
+                  </button>
+                  <button
+                    onClick={() => changeQuality(-1)}
+                    className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${currentLevel === -1 ? "text-violet-400 font-bold" : "text-zinc-300"}`}
+                  >
+                    <span>Auto</span>
+                    {currentLevel === -1 && <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  {levels.map((lvl, index) => (
+                    <button
+                      key={index}
+                      onClick={() => changeQuality(index)}
+                      className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${currentLevel === index ? "text-violet-400 font-bold" : "text-zinc-300"}`}
+                    >
+                      <span>{lvl.height}p</span>
+                      {currentLevel === index && <Check className="w-3.5 h-3.5" />}
                     </button>
                   ))}
                 </div>
