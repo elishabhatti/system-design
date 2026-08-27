@@ -19,6 +19,23 @@ model User {
   
   videos      Video[]  
   views       View[]   
+
+  // Subscriptions relations
+  subscribers   Subscription[] @relation("UserSubscriptions")
+  subscriptions Subscription[] @relation("UserFollowing")
+}
+
+model Subscription {
+  id           String   @id @default(uuid())
+  subscriberId String   // Jo subscribe kar raha hai
+  channelId    String   // Jiss channel ko subscribe kiya ja raha hai
+
+  subscriber   User     @relation("UserFollowing", fields: [subscriberId], references: [id], onDelete: Cascade)
+  channel      User     @relation("UserSubscriptions", fields: [channelId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+
+  @@unique([subscriberId, channelId]) // Ek user ek channel ko aik hi baar subscribe kar sakta hai
 }
 
 model Video {
