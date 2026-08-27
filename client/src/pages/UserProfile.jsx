@@ -5,11 +5,11 @@ import { fetchVideos, deleteVideo, updateUserProfile } from '../services/api';
 import { Settings, Video, Users, Sparkles, CheckCircle2, Eye, MoreVertical, Trash2, Pencil, X, Loader2, Camera } from 'lucide-react';
 
 export default function UserProfile() {
-  const { user, setUser } = useAuth(); // setUser agar available ho context mein
+  const { user, setUser } = useAuth(); 
   
-  const channelName = user?.channelName || "Elisha Jameel";
-  const email = user?.email || "elisha@example.com";
-  const initial = channelName ? channelName[0].toUpperCase() : "E";
+  const channelName = user?.channelName || "Example Channel";
+  const email = user?.email || "example@gmail.com";
+  const initial = channelName ? channelName[0].toUpperCase() : "S";
 
   const [activeTab, setActiveTab] = useState("videos");
   const [videos, setVideos] = useState([]);
@@ -39,13 +39,14 @@ export default function UserProfile() {
     setLoading(true);
     try {
       const data = await fetchVideos();
-      // Filter videos safely by matching userId or fallback
+      // Safely extract array whether data is direct array or wrapped inside an object
+      const videoArray = Array.isArray(data) ? data : (data.videos || data.data || []);
+      
       if (user?.id) {
-        const mine = data.filter((v) => v.userId === user.id || v.user?.id === user.id);
-        // Agar user ki apni koi video milti hai toh woh dikhao, warna agar database mein user ki ID alag format ki ho toh sab dikha do taake blank na lage
-        setVideos(mine.length > 0 ? mine : data);
+        const mine = videoArray.filter((v) => v.userId === user.id || v.user?.id === user.id);
+        setVideos(mine.length > 0 ? mine : videoArray);
       } else {
-        setVideos(data);
+        setVideos(videoArray);
       }
     } catch (err) {
       console.error("Failed to load videos", err);
@@ -281,15 +282,16 @@ function CustomizeChannelModal({ user, setUser, channelName, bannerUrl, setBanne
   const [tempAvatar, setTempAvatar] = useState(avatarUrl);
   const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
+const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await updateUserProfile({ channelName: name, bio, avatarUrl: tempAvatar, bannerUrl: tempBanner });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to update");
+      const data = await updateUserProfile({ 
+        channelName: name, 
+        bio, 
+        avatarUrl: tempAvatar, 
+        bannerUrl: tempBanner 
+      });
 
-      // Update local and context state
       setBannerUrl(data.user.bannerUrl);
       setAvatarUrl(data.user.avatarUrl);
       if (setUser && data.user) {
@@ -299,7 +301,7 @@ function CustomizeChannelModal({ user, setUser, channelName, bannerUrl, setBanne
       onClose();
     } catch (err) {
       console.error("Failed to update profile", err);
-      alert(err.message || "Error updating profile");
+      alert(err.response?.data?.error || err.message || "Error updating profile");
     } finally {
       setSaving(false);
     }

@@ -26,6 +26,11 @@ export const getCurrentUser = async () => {
   return response.data;
 };
 
+export const updateUserProfile = async (profileData) => {
+  const response = await API.put('/auth/profile', profileData);
+  return response.data;
+}
+
 // --- Video APIs ---
 export const uploadVideo = async (formData, onUploadProgress) => {
   const response = await API.post('/videos/upload', formData, {
@@ -50,8 +55,3 @@ export const incrementVideoView = async (videoId) => {
   const response = await API.post(`/videos/${videoId}/view`);
   return response.data;
 };
-
-export const updateUserProfile = async (profileData) => {
-  const response = await API.put('/users/profile', profileData);
-  return response.data;
-}
