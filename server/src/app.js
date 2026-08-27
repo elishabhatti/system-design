@@ -28,11 +28,11 @@ io.adapter(createAdapter(pubClient, subClient));
 app.set("io", io); 
 
 io.on("connection", (socket) => {
-  console.log(`A user connected on instance [Port: ${process.env.PORT || 3001}]:`, socket.id);
+  // console.log(`A user connected on instance [Port: ${process.env.PORT || 3001}]:`, socket.id);
 
   socket.on("join_video_room", (videoId) => {
     socket.join(`video_${videoId}`);
-    console.log(`User joined room: video_${videoId}`);
+    // console.log(`User joined room: video_${videoId}`);
   });
 
   socket.on("leave_video_room", (videoId) => {
@@ -40,7 +40,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    // console.log("User disconnected:", socket.id);
   });
 });
 

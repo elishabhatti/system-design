@@ -118,7 +118,6 @@ export const getMe = async (req, res) => {
 };
 
 export const updateProfile = async (req, res) => {
-  console.log("🔥 HIT UPDATE PROFILE ROUTE!", req.body); 
   try {
     const userId = req.userId; 
     const { channelName, bio, avatarUrl, bannerUrl } = req.body;
