@@ -8,6 +8,7 @@ export default function UserProfile() {
   const { user, setUser } = useAuth(); 
   
   const channelName = user?.channelName || "Example Channel";
+  const channelBio = user?.bio || "This is a sample bio. Update your profile to add a personal touch!";
   const email = user?.email || "example@gmail.com";
   const initial = channelName ? channelName[0].toUpperCase() : "S";
 
@@ -26,8 +27,8 @@ export default function UserProfile() {
   // Sync when user object updates from AuthContext
   useEffect(() => {
     if (user) {
-      if (user.bannerUrl) setBannerUrl(user.bannerUrl);
-      if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+      if (user.bannerUrl !== undefined) setBannerUrl(user.bannerUrl || "");
+      if (user.avatarUrl !== undefined) setAvatarUrl(user.avatarUrl || "");
     }
   }, [user]);
 
@@ -39,7 +40,6 @@ export default function UserProfile() {
     setLoading(true);
     try {
       const data = await fetchVideos();
-      // Safely extract array whether data is direct array or wrapped inside an object
       const videoArray = Array.isArray(data) ? data : (data.videos || data.data || []);
       
       if (user?.id) {
@@ -70,26 +70,26 @@ export default function UserProfile() {
   };
 
   return (
-    <div className="min-h-[95vh] text-zinc-100 selection:bg-violet-500 selection:text-white pb-20">
+    <div className="min-h-[95vh] text-zinc-100 selection:bg-zinc-700 selection:text-white pb-20">
       {/* Channel Banner */}
-      <div className="h-48 md:h-60 border-b border-white/10 relative overflow-hidden bg-[#181622]">
+      <div className="h-48 md:h-60 border-b border-white/10 relative overflow-hidden bg-[#121212]">
         {bannerUrl ? (
           <img src={bannerUrl} alt="Channel Banner" className="w-full h-full object-cover opacity-85" />
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-violet-600/20 via-[#13111C] to-[#0B0910]"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-zinc-900 via-[#121212] to-[#0a0a0a]"></div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0910] via-transparent to-transparent opacity-60"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent opacity-60"></div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6">
         {/* Channel Header Profile Section */}
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6 -mt-16 md:-mt-20 relative z-10 pb-8 border-b border-white/10">
           <div className="relative group">
-            <div className="w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-[#1F1D2C] border-4 border-[#0B0910] flex items-center justify-center text-3xl font-extrabold shadow-2xl text-white shrink-0 overflow-hidden">
+            <div className="w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-zinc-900 border-4 border-[#0a0a0a] flex items-center justify-center text-3xl font-extrabold shadow-2xl text-white shrink-0 overflow-hidden">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="bg-gradient-to-br from-violet-400 to-indigo-600 bg-clip-text text-transparent">{initial}</span>
+                <span className="text-zinc-300">{initial}</span>
               )}
             </div>
             <button 
@@ -104,17 +104,17 @@ export default function UserProfile() {
             <div className="flex flex-col md:flex-row md:items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight text-zinc-100 flex items-center justify-center md:justify-start gap-2">
                 {channelName}
-                <CheckCircle2 className="w-5 h-5 text-violet-400 fill-violet-400/20" />
+                <CheckCircle2 className="w-5 h-5 text-zinc-300 fill-zinc-300/20" />
               </h1>
-              <span className="bg-violet-500/10 border border-violet-500/20 text-violet-300 text-[10px] font-bold px-3 py-1 rounded-full w-fit mx-auto md:mx-0 shadow-inner">
+              <span className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] font-bold px-3 py-1 rounded-full w-fit mx-auto md:mx-0 shadow-inner">
                 PRO CREATOR
               </span>
             </div>
 
             <p className="text-xs text-zinc-400 mt-1.5 flex items-center justify-center md:justify-start gap-2">
-              <span className="font-mono text-violet-400">@{email.split('@')[0]}</span>
+              <span className="font-mono text-zinc-300">@{email.split('@')[0]}</span>
               <span>•</span>
-              <span className="text-zinc-300 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-violet-400" /> {subscriberCount} subscribers</span>
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-zinc-400" /> {subscriberCount} subscribers</span>
               <span>•</span>
               <span className="text-zinc-400">{videos.length} videos</span>
             </p>
@@ -127,13 +127,13 @@ export default function UserProfile() {
           <div className="flex items-center gap-3 pt-4 md:pt-4">
             <button
               onClick={() => setShowCustomize(true)}
-              className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-2xl text-xs font-semibold shadow-lg shadow-violet-600/30 transition duration-300 cursor-pointer active:scale-95"
+              className="flex items-center gap-2 bg-zinc-100 hover:bg-white text-zinc-950 px-5 py-2.5 rounded-2xl text-xs font-semibold shadow-lg transition duration-300 cursor-pointer active:scale-95"
             >
               <Sparkles className="w-4 h-4" /> Customize Channel
             </button>
             <button 
               onClick={() => setShowCustomize(true)}
-              className="p-2.5 rounded-2xl bg-[#1F1D2C] border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition cursor-pointer"
+              className="p-2.5 rounded-2xl bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition cursor-pointer"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -147,10 +147,10 @@ export default function UserProfile() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`pb-3 border-b-2 capitalize transition cursor-pointer flex items-center gap-2 ${
-                activeTab === tab ? "border-violet-500 text-white font-bold" : "border-transparent text-zinc-400 hover:text-zinc-200"
+                activeTab === tab ? "border-zinc-100 text-white font-bold" : "border-transparent text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              {tab === "videos" && <Video className="w-4 h-4 text-violet-400" />}
+              {tab === "videos" && <Video className="w-4 h-4 text-zinc-400" />}
               {tab}
             </button>
           ))}
@@ -161,17 +161,17 @@ export default function UserProfile() {
           <>
             {loading ? (
               <div className="flex flex-col items-center justify-center py-28">
-                <Loader2 className="w-7 h-7 text-violet-500 animate-spin" />
+                <Loader2 className="w-7 h-7 text-zinc-400 animate-spin" />
                 <p className="text-xs text-zinc-400 mt-3 font-medium">Loading your masterpieces...</p>
               </div>
             ) : videos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-28 text-center bg-[#15131D] rounded-3xl border border-white/5 p-8">
-                <Video className="w-10 h-10 text-violet-500/50 mb-3" />
+              <div className="flex flex-col items-center justify-center py-28 text-center bg-zinc-900/50 rounded-3xl border border-white/5 p-8">
+                <Video className="w-10 h-10 text-zinc-500 mb-3" />
                 <p className="text-sm text-zinc-200 font-semibold">No videos uploaded yet</p>
                 <p className="text-xs text-zinc-500 mt-1 max-w-sm">Share your video streaming projects or tutorials with the world.</p>
                 <Link
                   to="/create"
-                  className="mt-5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold px-5 py-2.5 rounded-2xl transition shadow-lg shadow-violet-600/20 cursor-pointer"
+                  className="mt-5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold px-5 py-2.5 rounded-2xl transition shadow-lg cursor-pointer"
                 >
                   Upload your first video
                 </Link>
@@ -179,7 +179,7 @@ export default function UserProfile() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-10">
                 {videos.map((vid) => (
-                  <div key={vid.id} className="group flex flex-col gap-2.5 rounded-2xl p-2.5 bg-[#15131D] border border-white/5 hover:border-violet-500/30 hover:bg-[#1A1726] transition-all shadow-xl">
+                  <div key={vid.id} className="group flex flex-col gap-2.5 rounded-2xl p-2.5 bg-zinc-900/60 border border-white/5 hover:border-zinc-700 hover:bg-zinc-900 transition-all shadow-xl">
                     <Link to={`/watch/${vid.id}`} className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-inner block">
                       <video src={vid.filepath} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" muted />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
@@ -194,18 +194,18 @@ export default function UserProfile() {
                       )}
                       {deletingId === vid.id && (
                         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-10">
-                          <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
+                          <Loader2 className="w-6 h-6 text-zinc-300 animate-spin" />
                         </div>
                       )}
                     </Link>
 
                     <div className="flex items-start justify-between gap-2 px-1">
                       <div className="overflow-hidden">
-                        <h3 className="font-semibold text-zinc-100 text-xs tracking-tight line-clamp-2 leading-relaxed group-hover:text-violet-300 transition">
+                        <h3 className="font-semibold text-zinc-100 text-xs tracking-tight line-clamp-2 leading-relaxed group-hover:text-zinc-300 transition">
                           {vid.title}
                         </h3>
                         <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-1.5">
-                          <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-violet-400" /> {vid.views || 0} views</span>
+                          <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-zinc-400" /> {vid.views || 0} views</span>
                           <span>•</span>
                           <span>Recently</span>
                         </div>
@@ -220,13 +220,13 @@ export default function UserProfile() {
                         </button>
 
                         {openMenuId === vid.id && (
-                          <div className="absolute right-0 top-8 bg-[#1F1D2C] border border-white/10 rounded-xl py-1.5 w-36 shadow-2xl z-20">
+                          <div className="absolute right-0 top-8 bg-zinc-900 border border-white/10 rounded-xl py-1.5 w-36 shadow-2xl z-20">
                             <Link
                               to={`/edit/${vid.id}`}
                               onClick={() => setOpenMenuId(null)}
-                              className="flex items-center gap-2 px-3.5 py-2 text-xs text-zinc-300 hover:bg-violet-600/20 hover:text-white transition"
+                              className="flex items-center gap-2 px-3.5 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
                             >
-                              <Pencil className="w-3.5 h-3.5 text-violet-400" /> Edit Details
+                              <Pencil className="w-3.5 h-3.5 text-zinc-400" /> Edit Details
                             </Link>
                             <button
                               onClick={() => handleDelete(vid.id)}
@@ -246,13 +246,13 @@ export default function UserProfile() {
         )}
 
         {activeTab === "analytics" && (
-          <div className="py-20 text-center text-zinc-500 text-xs bg-[#15131D] rounded-3xl border border-white/5">
+          <div className="py-20 text-center text-zinc-500 text-xs bg-zinc-900/40 rounded-3xl border border-white/5">
             📊 Creator Analytics & Real-time Graph Visualizer coming soon.
           </div>
         )}
 
         {activeTab === "playlists" && (
-          <div className="py-20 text-center text-zinc-500 text-xs bg-[#15131D] rounded-3xl border border-white/5">
+          <div className="py-20 text-center text-zinc-500 text-xs bg-zinc-900/40 rounded-3xl border border-white/5">
             📁 No custom playlists organized yet.
           </div>
         )}
@@ -264,6 +264,7 @@ export default function UserProfile() {
           user={user}
           setUser={setUser}
           channelName={channelName}
+          channelBio={channelBio}
           bannerUrl={bannerUrl}
           setBannerUrl={setBannerUrl}
           avatarUrl={avatarUrl}
@@ -275,14 +276,14 @@ export default function UserProfile() {
   );
 }
 
-function CustomizeChannelModal({ user, setUser, channelName, bannerUrl, setBannerUrl, avatarUrl, setAvatarUrl, onClose }) {
+function CustomizeChannelModal({ user, setUser, channelName, channelBio, bannerUrl, setBannerUrl, avatarUrl, setAvatarUrl, onClose }) {
   const [name, setName] = useState(channelName);
-  const [bio, setBio] = useState(user?.bio || "");
-  const [tempBanner, setTempBanner] = useState(bannerUrl);
-  const [tempAvatar, setTempAvatar] = useState(avatarUrl);
+  const [bio, setBio] = useState(channelBio);
+  const [tempBanner, setTempBanner] = useState(bannerUrl || "");
+  const [tempAvatar, setTempAvatar] = useState(avatarUrl || "");
   const [saving, setSaving] = useState(false);
 
-const handleSave = async () => {
+  const handleSave = async () => {
     setSaving(true);
     try {
       const data = await updateUserProfile({ 
@@ -292,10 +293,11 @@ const handleSave = async () => {
         bannerUrl: tempBanner 
       });
 
-      setBannerUrl(data.user.bannerUrl);
-      setAvatarUrl(data.user.avatarUrl);
-      if (setUser && data.user) {
-        setUser(data.user);
+      const updatedUser = data.user || data;
+      setBannerUrl(updatedUser.bannerUrl || "");
+      setAvatarUrl(updatedUser.avatarUrl || "");
+      if (setUser && updatedUser) {
+        setUser(updatedUser);
       }
 
       onClose();
@@ -308,14 +310,14 @@ const handleSave = async () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div
-        className="bg-[#181622] border border-white/10 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative overflow-hidden"
+        className="bg-[#121212] border border-white/10 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-violet-400" /> Customize Channel Studio
+            <Sparkles className="w-4 h-4 text-zinc-300" /> Customize Channel Studio
           </h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer">
             <X className="w-4 h-4" />
@@ -329,7 +331,7 @@ const handleSave = async () => {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
+              className="w-full bg-zinc-900 border border-white/10 focus:border-zinc-400 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
             />
           </div>
 
@@ -340,7 +342,7 @@ const handleSave = async () => {
               value={tempBanner}
               onChange={(e) => setTempBanner(e.target.value)}
               placeholder="https://example.com/banner.jpg"
-              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
+              className="w-full bg-zinc-900 border border-white/10 focus:border-zinc-400 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
             />
           </div>
 
@@ -351,7 +353,7 @@ const handleSave = async () => {
               value={tempAvatar}
               onChange={(e) => setTempAvatar(e.target.value)}
               placeholder="https://example.com/avatar.jpg"
-              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
+              className="w-full bg-zinc-900 border border-white/10 focus:border-zinc-400 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition"
             />
           </div>
 
@@ -361,7 +363,7 @@ const handleSave = async () => {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               rows={3}
-              className="w-full bg-[#121019] border border-white/10 focus:border-violet-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition resize-none"
+              className="w-full bg-zinc-900 border border-white/10 focus:border-zinc-400 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none transition resize-none"
             />
           </div>
         </div>
@@ -376,7 +378,7 @@ const handleSave = async () => {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-lg shadow-violet-600/30 cursor-pointer"
+            className="flex items-center gap-2 bg-zinc-100 hover:bg-white disabled:opacity-60 text-zinc-950 px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-lg cursor-pointer"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             Save Changes
