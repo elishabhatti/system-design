@@ -103,7 +103,7 @@ export const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, channelName: true, email: true, avatarUrl: true, bio: true, createdAt: true },
+      select: { id: true, channelName: true, email: true, avatarUrl: true, bio: true, createdAt: true, bannerUrl: true },
     });
 
     if (!user) {
@@ -133,6 +133,7 @@ export const updateProfile = async (req, res) => {
     });
 
     res.json({ message: "Profile updated successfully", user: updatedUser });
+    console.log(updatedUser, "updated user profile");
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ error: "Server error while updating profile" });

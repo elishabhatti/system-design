@@ -279,9 +279,15 @@ export default function UserProfile() {
 function CustomizeChannelModal({ user, setUser, channelName, channelBio, bannerUrl, setBannerUrl, avatarUrl, setAvatarUrl, onClose }) {
   const [name, setName] = useState(channelName);
   const [bio, setBio] = useState(channelBio);
+  
   const [tempBanner, setTempBanner] = useState(bannerUrl || "");
   const [tempAvatar, setTempAvatar] = useState(avatarUrl || "");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setTempBanner(bannerUrl || "");
+    setTempAvatar(avatarUrl || "");
+  }, [bannerUrl, avatarUrl]);
 
   const handleSave = async () => {
     setSaving(true);
