@@ -69,7 +69,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-          console.log("HLS Manifest parsed, levels found:", data.levels);
           setLevels(data.levels);
           setCurrentLevel(hls.currentLevel); // Usually -1 (Auto)
         });
