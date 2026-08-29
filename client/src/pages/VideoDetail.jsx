@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { fetchVideos, incrementVideoView, toggleSubscribeChannel, getCurrentUser } from "../services/api";
 import { io } from "socket.io-client"; 
 import {
@@ -18,6 +19,9 @@ const SOCKET_URL = "http://localhost:3000";
 const socket = io(SOCKET_URL);
 
 export default function VideoDetail() {
+  const { id } = useParams(); // URL se video id uthayein
+  const navigate = useNavigate(); // Navigation ke liye
+
   const [videos, setVideos] = useState([]);
   const [currentVideo, setCurrentVideo] = useState(null);
   const [loadingVideos, setLoadingVideos] = useState(true);
@@ -35,9 +39,24 @@ export default function VideoDetail() {
   const countedSessionRef = useRef(new Set());
 
   useEffect(() => {
-    loadVideos();
+    loadInitialData();
     loadUserData();
   }, []);
+
+  // Jab URL ki ID change ho ya videos list load ho jaye, toh current video ko match karke set karein
+  useEffect(() => {
+    if (videos.length > 0) {
+      if (id) {
+        const found = videos.find((v) => String(v.id) === String(id));
+        if (found) {
+          setCurrentVideo(found);
+        }
+      } else {
+        // Agar URL mein ID nahi hai toh pehli video par redirect kar dein
+        navigate(`/watch/${videos[0].id}`, { replace: true });
+      }
+    }
+  }, [id, videos]);
 
   const loadUserData = async () => {
     try {
@@ -87,14 +106,11 @@ export default function VideoDetail() {
     };
   }, [currentVideo?.id]);
 
-  const loadVideos = async () => {
+  const loadInitialData = async () => {
     try {
       const data = await fetchVideos();
       const videoArray = Array.isArray(data) ? data : (data.videos || data.data || []);
-      if (videoArray.length > 0) {
-        setVideos(videoArray);
-        setCurrentVideo(videoArray[0]);
-      }
+      setVideos(videoArray);
     } catch (err) {
       console.error("Failed to load videos", err);
     } finally {
@@ -105,7 +121,6 @@ export default function VideoDetail() {
   const handleSubscribeToggle = async () => {
     if (!currentVideo?.userId) return;
 
-    // Frontend Guard: Self-subscription check using backend user data
     const currentUserId = currentUser?.id || currentUser?._id;
     if (currentUserId && String(currentVideo.userId) === String(currentUserId)) {
       setToastMessage("You can't subscribe your own channel Thanks!");
@@ -173,7 +188,7 @@ export default function VideoDetail() {
     );
   }
 
-  const sidebarVideos = videos.filter((v) => v.id !== currentVideo.id);
+  const sidebarVideos = videos.filter((v) => String(v.id) !== String(currentVideo.id));
 
   return (
     <>
@@ -308,11 +323,11 @@ export default function VideoDetail() {
 
           <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1">
             {sidebarVideos.map((vid, idx) => {
-              const isSelected = currentVideo.id === vid.id;
+              const isSelected = String(currentVideo.id) === String(vid.id);
               return (
                 <div
                   key={vid.id}
-                  onClick={() => setCurrentVideo(vid)}
+                  onClick={() => navigate(`/watch/${vid.id}`)} // URL change karega taake routing properly trigger ho
                   className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
                     isSelected
                       ? "border-zinc-500 bg-zinc-900"
