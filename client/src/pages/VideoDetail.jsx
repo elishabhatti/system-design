@@ -19,8 +19,8 @@ const SOCKET_URL = "http://localhost:3000";
 const socket = io(SOCKET_URL);
 
 export default function VideoDetail() {
-  const { id } = useParams(); // URL se video id uthayein
-  const navigate = useNavigate(); // Navigation ke liye
+  const { id } = useParams();
+  const navigate = useNavigate();
 
   const [videos, setVideos] = useState([]);
   const [currentVideo, setCurrentVideo] = useState(null);
@@ -43,7 +43,6 @@ export default function VideoDetail() {
     loadUserData();
   }, []);
 
-  // Jab URL ki ID change ho ya videos list load ho jaye, toh current video ko match karke set karein
   useEffect(() => {
     if (videos.length > 0) {
       if (id) {
@@ -52,7 +51,6 @@ export default function VideoDetail() {
           setCurrentVideo(found);
         }
       } else {
-        // Agar URL mein ID nahi hai toh pehli video par redirect kar dein
         navigate(`/watch/${videos[0].id}`, { replace: true });
       }
     }
@@ -123,7 +121,7 @@ export default function VideoDetail() {
 
     const currentUserId = currentUser?.id || currentUser?._id;
     if (currentUserId && String(currentVideo.userId) === String(currentUserId)) {
-      setToastMessage("You can't subscribe your own channel Thanks!");
+      setToastMessage("You can't subscribe to your own channel!");
       setTimeout(() => setToastMessage(null), 3000);
       return;
     }
@@ -135,7 +133,7 @@ export default function VideoDetail() {
       setSubscriberCount(res.subscriberCount);
     } catch (err) {
       console.error("Failed to toggle subscription", err);
-      const errorMsg = err.response?.data?.error || "Subscription cant be updated.";
+      const errorMsg = err.response?.data?.error || "Subscription couldn't be updated.";
       setToastMessage(errorMsg);
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
@@ -171,10 +169,10 @@ export default function VideoDetail() {
 
   if (loadingVideos) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[75vh]">
-        <div className="w-6 h-6 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-zinc-400 mt-3 font-mono">
-          Loading player...
+      <div className="flex flex-col items-center justify-center min-h-[75vh] bg-black">
+        <div className="w-6 h-6 border-2 border-zinc-600 border-t-white rounded-full animate-spin"></div>
+        <p className="text-xs text-zinc-500 mt-3 font-mono">
+          Loading player stream...
         </p>
       </div>
     );
@@ -182,7 +180,7 @@ export default function VideoDetail() {
 
   if (!currentVideo) {
     return (
-      <div className="text-center py-20 text-zinc-400 text-xs">
+      <div className="text-center py-20 text-zinc-500 text-xs bg-black">
         No videos available in your library.
       </div>
     );
@@ -191,13 +189,14 @@ export default function VideoDetail() {
   const sidebarVideos = videos.filter((v) => String(v.id) !== String(currentVideo.id));
 
   return (
-    <>
+    <div className="min-h-screen bg-black text-zinc-100">
       <Navbar />
-      <div className="max-w-full mx-auto px-4 lg:px-8 py-6 text-zinc-100 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
-        {/* Left: Player Card */}
-        <div className="lg:col-span-8 xl:col-span-9">
-          <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden bg-[#121212]">
-            <div className="relative">
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+        
+        {/* Left: Player Card & Info */}
+        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+          <div className="border border-zinc-900 rounded-2xl shadow-2xl overflow-hidden bg-zinc-950">
+            <div className="relative aspect-video bg-black flex items-center justify-center">
               <VideoPlayer
                 key={currentVideo.id}
                 src={currentVideo.filepath}
@@ -212,9 +211,9 @@ export default function VideoDetail() {
               </h1>
 
               {/* Channel + Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-900">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm ring-2 ring-white/10 overflow-hidden bg-zinc-900">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white shadow-md border border-zinc-800 overflow-hidden bg-zinc-900">
                     {currentVideo.user?.avatarUrl ? (
                       <img
                         src={currentVideo.user.avatarUrl}
@@ -226,10 +225,10 @@ export default function VideoDetail() {
                     )}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-xs text-zinc-200">
+                    <h3 className="font-bold text-xs text-zinc-200">
                       {currentVideo.user?.channelName || "Elisha Jameel"}
                     </h3>
-                    <span className="text-[11px] text-zinc-400">
+                    <span className="text-[10px] text-zinc-500 font-mono">
                       {subscriberCount} subscribers
                     </span>
                   </div>
@@ -238,9 +237,9 @@ export default function VideoDetail() {
                   <button
                     onClick={handleSubscribeToggle}
                     disabled={subscribingLoading}
-                    className={`ml-3 flex items-center gap-1.5 font-medium text-xs px-4 py-2 rounded-full transition cursor-pointer shadow active:scale-95 disabled:opacity-50 ${
+                    className={`ml-3 flex items-center gap-1.5 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer shadow-lg active:scale-95 disabled:opacity-50 ${
                       isSubscribed
-                        ? "bg-zinc-800 border border-white/10 text-zinc-200 hover:bg-zinc-700"
+                        ? "bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800"
                         : "bg-white text-black hover:bg-zinc-200"
                     }`}
                   >
@@ -252,22 +251,22 @@ export default function VideoDetail() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setLiked(!liked)}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                       liked
-                        ? "bg-zinc-100 border-zinc-100 text-zinc-950 font-bold"
-                        : "bg-zinc-900 border-white/10 hover:bg-zinc-800 text-zinc-200"
+                        ? "bg-white border-white text-black font-bold shadow-lg"
+                        : "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300"
                     }`}
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
                     <span>{liked ? "28.1K" : "28K"}</span>
                   </button>
 
-                  <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer text-zinc-200">
+                  <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300">
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Share</span>
                   </button>
 
-                  <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-1.5 rounded-full text-xs font-medium border border-white/10 transition cursor-pointer text-zinc-200">
+                  <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300">
                     <Bookmark className="w-3.5 h-3.5" />
                     <span>Save</span>
                   </button>
@@ -275,30 +274,30 @@ export default function VideoDetail() {
               </div>
 
               {/* Stats + Description */}
-              <div className="border border-white/10 rounded-xl p-4 text-xs text-zinc-300 leading-relaxed bg-zinc-900/40">
-                <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-300 mb-3 pb-3 border-b border-white/10">
+              <div className="border border-zinc-900 rounded-xl p-4 text-xs text-zinc-300 leading-relaxed bg-zinc-950">
+                <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-400 mb-3 pb-3 border-b border-zinc-900">
                   <span className="flex items-center gap-1.5">
-                    <Eye className="w-3.5 h-3.5 text-zinc-400" />
+                    <Eye className="w-3.5 h-3.5 text-zinc-500" />
                     {currentVideo.views ?? 0} views
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <ThumbsUp className="w-3.5 h-3.5 text-zinc-400" />
+                    <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
                     28K likes
                   </span>
                   {currentVideo.isLive && (
-                    <span className="flex items-center gap-1.5 text-red-400">
-                      <Radio className="w-3.5 h-3.5" />
+                    <span className="flex items-center gap-1.5 text-red-400 font-bold">
+                      <Radio className="w-3.5 h-3.5 animate-pulse" />
                       1.9M streaming
                     </span>
                   )}
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                  <span className="flex items-center gap-1.5 font-mono text-[11px]">
+                    <Clock className="w-3.5 h-3.5 text-zinc-500" />
                     {currentVideo.uploadedAt
                       ? new Date(currentVideo.uploadedAt).toLocaleDateString()
                       : "Aug 15, 2026"}
                   </span>
                 </div>
-                <p className="text-zinc-400">
+                <p className="text-zinc-400 font-normal">
                   {currentVideo.description ||
                     "Enjoy this immersive media stream configured directly from your library feed."}
                 </p>
@@ -307,44 +306,44 @@ export default function VideoDetail() {
           </div>
         </div>
 
-        {/* Right: Up Next Sidebar */}
+        {/* Right: Up Next Queue Sidebar */}
         <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
-          <div className="border border-white/10 rounded-xl p-3.5 flex items-center justify-between shadow-md bg-zinc-900/60">
+          <div className="border border-zinc-900 rounded-2xl p-3.5 flex items-center justify-between shadow-lg bg-zinc-950">
             <div>
-              <h3 className="font-bold text-xs text-zinc-100">
-                Mix - Library Stream
+              <h3 className="font-bold text-xs text-white">
+                Queue Stream Mix
               </h3>
-              <span className="text-[10px] text-zinc-500">
-                {videos.length} videos
+              <span className="text-[10px] text-zinc-500 font-mono">
+                {videos.length} videos available
               </span>
             </div>
-            <Sparkles className="w-4 h-4 text-zinc-300" />
+            <Sparkles className="w-4 h-4 text-zinc-400" />
           </div>
 
-          <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1">
+          <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
             {sidebarVideos.map((vid, idx) => {
               const isSelected = String(currentVideo.id) === String(vid.id);
               return (
                 <div
                   key={vid.id}
-                  onClick={() => navigate(`/watch/${vid.id}`)} // URL change karega taake routing properly trigger ho
+                  onClick={() => navigate(`/watch/${vid.id}`)}
                   className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
                     isSelected
-                      ? "border-zinc-500 bg-zinc-900"
-                      : "border-white/5 bg-zinc-900/40 hover:border-white/20 hover:bg-zinc-900"
+                      ? "border-zinc-700 bg-zinc-900 shadow-md"
+                      : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900"
                   }`}
                 >
-                  <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-white/10">
+                  <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
                     <video
                       src={vid.filepath}
                       className="w-full h-full object-cover"
                       muted
                     />
-                    <span className="absolute bottom-1 right-1 bg-black/85 text-[9px] px-1 rounded text-zinc-200 font-mono">
+                    <span className="absolute bottom-1 right-1 bg-black/90 text-[9px] px-1 rounded text-zinc-300 font-mono">
                       {vid.duration || "5:31"}
                     </span>
                     {vid.isLive && (
-                      <span className="absolute top-1 left-1 bg-red-600 text-[8px] font-bold px-1 rounded text-white">
+                      <span className="absolute top-1 left-1 bg-red-600 text-[8px] font-bold px-1 rounded text-white animate-pulse">
                         LIVE
                       </span>
                     )}
@@ -355,11 +354,11 @@ export default function VideoDetail() {
                       #{idx + 1} in queue
                     </span>
                     <h4
-                      className={`font-semibold text-xs truncate ${isSelected ? "text-white" : "text-zinc-200 group-hover:text-white"}`}
+                      className={`font-semibold text-xs truncate ${isSelected ? "text-white font-bold" : "text-zinc-300 group-hover:text-white"}`}
                     >
                       {vid.title}
                     </h4>
-                    <span className="text-[11px] text-zinc-400 truncate mt-0.5">
+                    <span className="text-[10px] text-zinc-500 truncate mt-0.5">
                       {vid.user?.channelName || "Elisha Jameel"}
                     </span>
                   </div>
@@ -372,11 +371,11 @@ export default function VideoDetail() {
 
       {/* Toast Notification Popup */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-white/20 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all">
-          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-          <p className="text-xs font-medium">{toastMessage}</p>
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-800 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all">
+          <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+          <p className="text-xs font-semibold">{toastMessage}</p>
         </div>
       )}
-    </>
+    </div>
   );
 }
