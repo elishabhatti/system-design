@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useSidebar } from '../context/SidebarContext';
 import { 
@@ -14,7 +14,6 @@ import {
   Download, 
   Flame, 
   Music, 
-  Radio, 
   Gamepad2, 
   ChevronRight,
   Trophy,
@@ -26,7 +25,22 @@ export default function Sidebar() {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
-  // Icons configured to match YouTube's sizing and stroke weight
+  const [subscriptions, setSubscriptions] = useState([]);
+
+  // Fetch real subscriptions from API if available
+  useEffect(() => {
+    import("../services/api").then(({ fetchSubscriptions }) => {
+      if (fetchSubscriptions) {
+        fetchSubscriptions()
+          .then((res) => {
+            if (Array.isArray(res)) setSubscriptions(res);
+            else if (res?.subscriptions) setSubscriptions(res.subscriptions);
+          })
+          .catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
+
   const iconClass = "w-5 h-5 stroke-[1.5px]"; 
 
   const mainLinks = [
@@ -45,15 +59,6 @@ export default function Sidebar() {
     { path: '/downloads', label: 'Downloads', icon: Download },
   ];
 
-  const subscriptionsList = [
-    { name: 'MANGA MIND', initial: 'M', color: 'from-amber-600 to-orange-700' },
-    { name: 'ARY Digital HD', initial: 'A', color: 'from-blue-600 to-indigo-700' },
-    { name: 'Taarak Mehta Ka...', initial: 'T', color: 'from-emerald-600 to-teal-700' },
-    { name: 'Bullet Journal', initial: 'B', color: 'from-purple-600 to-violet-700' },
-    { name: 'Piyush Garg', initial: 'P', color: 'from-indigo-600 to-blue-700' },
-    { name: 'Sharum Ki Sketches', initial: 'S', color: 'from-rose-600 to-pink-700' },
-  ];
-
   const exploreLinks = [
     { label: 'Trending', icon: Flame },
     { label: 'Music', icon: Music },
@@ -65,7 +70,7 @@ export default function Sidebar() {
   // Collapsed Sidebar View (Mini Sidebar)
   if (!isSidebarOpen) {
     return (
-      <aside className="w-18 text-zinc-100 flex-col items-center py-2 sticky top-14 h-[calc(100vh-3.5rem)] hidden md:flex shrink-0 z-10">
+      <aside className="w-18 bg-black text-zinc-100 flex-col items-center py-2 sticky top-14 h-[calc(100vh-3.5rem)] hidden md:flex shrink-0 z-10 border-r border-zinc-900">
         <div className="flex flex-col w-full gap-1">
           {mainLinks.map((link) => {
             const Icon = link.icon;
@@ -75,10 +80,10 @@ export default function Sidebar() {
                 to={link.path} 
                 key={link.path}
                 title={link.label}
-                className={`flex flex-col items-center justify-center py-4 px-1 mx-1 rounded-xl transition-colors ${
+                className={`flex flex-col items-center justify-center py-4 px-1 mx-2 rounded-xl transition-colors ${
                   active 
-                    ? 'bg-[#27272a]/60 text-white font-medium' 
-                    : 'text-zinc-200 hover:bg-[#27272a] hover:text-white'
+                    ? 'bg-zinc-900 text-white font-medium border border-zinc-800' 
+                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
                 }`}
               >
                 <Icon className={`${iconClass} mb-1.5 ${active ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
@@ -90,10 +95,10 @@ export default function Sidebar() {
           <Link 
             to="/profile"
             title="You"
-            className={`flex flex-col items-center justify-center py-4 px-1 mx-1 rounded-xl transition-colors ${
+            className={`flex flex-col items-center justify-center py-4 px-1 mx-2 rounded-xl transition-colors ${
               isActive('/profile') 
-                ? 'bg-[#27272a]/60 text-white font-medium' 
-                : 'text-zinc-200 hover:bg-[#27272a] hover:text-white'
+                ? 'bg-zinc-900 text-white font-medium border border-zinc-800' 
+                : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
             }`}
           >
             <User className={`${iconClass} mb-1.5 ${isActive('/profile') ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
@@ -104,12 +109,12 @@ export default function Sidebar() {
     );
   }
 
-  // Expanded Sidebar View (Full YouTube Style)
+  // Expanded Sidebar View (Full Orbit Style)
   return (
-    <aside className="w-[240px] text-zinc-100 flex-col p-3 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden hidden md:flex shrink-0 z-10 hover:scrollbar-thumb-[#717171] scrollbar-thin scrollbar-thumb-transparent scrollbar-track-transparent pr-2 transition-all">
+    <aside className="w-[240px] bg-black text-zinc-100 flex-col p-3 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden hidden md:flex shrink-0 z-10 border-r border-zinc-900 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent pr-2 transition-all">
       
       {/* Main Section */}
-      <div className="pb-3 border-b border-zinc-800/80">
+      <div className="pb-3 border-b border-zinc-900">
         {mainLinks.map((link) => {
           const Icon = link.icon;
           const active = isActive(link.path);
@@ -117,10 +122,10 @@ export default function Sidebar() {
             <Link 
               to={link.path} 
               key={link.path}
-              className={`flex items-center gap-5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-4 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
                 active 
-                  ? 'bg-[#27272a] text-white' 
-                  : 'text-zinc-100 hover:bg-[#27272a]'
+                  ? 'bg-zinc-900 text-white border border-zinc-800' 
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
               }`}
             >
               <Icon className={`${iconClass} ${active ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
@@ -131,12 +136,12 @@ export default function Sidebar() {
       </div>
 
       {/* You Section */}
-      <div className="py-3 border-b border-zinc-800/80">
+      <div className="py-3 border-b border-zinc-900">
         <Link 
           to="/profile" 
-          className="flex items-center gap-2 px-3 py-2 mb-1 text-base font-bold text-white hover:bg-[#27272a] rounded-lg transition-colors group"
+          className="flex items-center gap-2 px-3 py-2 mb-1 text-xs font-bold uppercase tracking-wider text-zinc-300 hover:bg-zinc-900 rounded-xl transition-colors group"
         >
-          You <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+          You <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
         </Link>
         
         {youLinks.map((item, idx) => {
@@ -146,10 +151,10 @@ export default function Sidebar() {
             <Link 
               to={item.path} 
               key={idx}
-              className={`flex items-center gap-5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-4 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
                 active 
-                  ? 'bg-[#27272a] text-white' 
-                  : 'text-zinc-100 hover:bg-[#27272a]'
+                  ? 'bg-zinc-900 text-white border border-zinc-800' 
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
               }`}
             >
               <Icon className={`${iconClass} ${active ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
@@ -160,41 +165,42 @@ export default function Sidebar() {
       </div>
 
       {/* Subscriptions Section */}
-      <div className="py-3 border-b border-zinc-800/80">
-        <p className="px-3 py-1 mb-1 text-base font-bold text-white">Subscriptions</p>
-        {subscriptionsList.map((sub, idx) => (
-          <button 
-            key={idx}
-            className="w-full flex items-center gap-4 px-3 py-2 rounded-lg text-sm font-medium text-zinc-100 hover:bg-[#27272a] transition-colors cursor-pointer"
-          >
-            <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${sub.color} flex items-center justify-center text-[11px] font-bold text-white shrink-0 shadow-sm`}>
-              {sub.initial}
-            </div>
-            <span className="truncate text-left w-full">{sub.name}</span>
-            
-            {/* Fake unread indicator for realism */}
-            {idx % 3 === 0 && (
-               <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0"></span>
-            )}
-          </button>
-        ))}
-        <button className="w-full flex items-center gap-5 px-3 py-2 mt-1 rounded-lg text-sm font-medium text-zinc-100 hover:bg-[#27272a] transition-colors">
-          <div className="w-6 flex justify-center">
-             <ChevronRight className="w-5 h-5 stroke-[1.5px] rotate-90" />
+      <div className="py-3 border-b border-zinc-900">
+        <p className="px-3 py-1 mb-1 text-xs font-bold uppercase tracking-wider text-zinc-300">Subscriptions</p>
+        
+        {subscriptions.length > 0 ? (
+          subscriptions.map((sub, idx) => (
+            <Link 
+              to={`/channel/${sub.id || sub.channelName}`} 
+              key={idx}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors cursor-pointer"
+            >
+              <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[11px] font-bold text-white shrink-0 overflow-hidden">
+                {sub.avatarUrl ? (
+                  <img src={sub.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  (sub.channelName || sub.name)?.[0]?.toUpperCase() || 'C'
+                )}
+              </div>
+              <span className="truncate text-left w-full">{sub.channelName || sub.name}</span>
+            </Link>
+          ))
+        ) : (
+          <div className="px-3 py-2 text-xs text-zinc-600 font-medium italic">
+            No subscriptions yet
           </div>
-          <span className="truncate">Show more</span>
-        </button>
+        )}
       </div>
 
       {/* Explore Section */}
-      <div className="py-3 border-b border-zinc-800/80">
-        <p className="px-3 py-1 mb-1 text-base font-bold text-white">Explore</p>
+      <div className="py-3 border-b border-zinc-900">
+        <p className="px-3 py-1 mb-1 text-xs font-bold uppercase tracking-wider text-zinc-300">Explore</p>
         {exploreLinks.map((item, idx) => {
           const Icon = item.icon;
           return (
             <button 
               key={idx}
-              className="w-full flex items-center gap-5 px-3 py-2 rounded-lg text-sm font-medium text-zinc-100 hover:bg-[#27272a] transition-colors cursor-pointer"
+              className="w-full flex items-center gap-4 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:bg-zinc-900 hover:text-white transition-colors cursor-pointer"
             >
               <Icon className={iconClass} />
               <span className="truncate text-left">{item.label}</span>
@@ -204,24 +210,21 @@ export default function Sidebar() {
       </div>
 
       {/* Footer Links */}
-      <div className="px-4 py-4 text-[13px] text-[#AAAAAA] font-semibold flex flex-col gap-3">
+      <div className="px-3 py-4 text-[11px] text-zinc-600 font-medium flex flex-col gap-2">
         <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-          <a href="#" className="hover:text-zinc-300">About</a>
-          <a href="#" className="hover:text-zinc-300">Press</a>
-          <a href="#" className="hover:text-zinc-300">Copyright</a>
-          <a href="#" className="hover:text-zinc-300">Contact us</a>
-          <a href="#" className="hover:text-zinc-300">Creators</a>
-          <a href="#" className="hover:text-zinc-300">Advertise</a>
-          <a href="#" className="hover:text-zinc-300">Developers</a>
+          <a href="#" className="hover:text-zinc-400">About</a>
+          <a href="#" className="hover:text-zinc-400">Press</a>
+          <a href="#" className="hover:text-zinc-400">Copyright</a>
+          <a href="#" className="hover:text-zinc-400">Contact us</a>
+          <a href="#" className="hover:text-zinc-400">Creators</a>
+          <a href="#" className="hover:text-zinc-400">Developers</a>
         </div>
         <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-          <a href="#" className="hover:text-zinc-300">Terms</a>
-          <a href="#" className="hover:text-zinc-300">Privacy</a>
-          <a href="#" className="hover:text-zinc-300">Policy & Safety</a>
-          <a href="#" className="hover:text-zinc-300">How YouTube works</a>
-          <a href="#" className="hover:text-zinc-300">Test new features</a>
+          <a href="#" className="hover:text-zinc-400">Terms</a>
+          <a href="#" className="hover:text-zinc-400">Privacy</a>
+          <a href="#" className="hover:text-zinc-400">Policy & Safety</a>
         </div>
-        <p className="text-xs text-[#717171] font-normal mt-2">© 2026 Google LLC</p>
+        <p className="text-[10px] text-zinc-700 font-mono mt-1">© 2026 Orbit Studio</p>
       </div>
 
     </aside>
