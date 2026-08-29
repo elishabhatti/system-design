@@ -4,7 +4,7 @@
     "description": "",
     "main": "src/main.js",
     "scripts": {
-        "dev:cluster": "concurrently \"PORT=3000 node --env-file=.env src/main.js\" \"PORT=3001 node --env-file=.env src/main.js\"",
+        "dev:cluster": "concurrently \"PORT=3000 node --watch --env-file=.env src/main.js\" \"PORT=3001 node --watch --env-file=.env src/main.js\"",
         "test": "echo \"Error: no test specified\" && exit 1",
         "dev": "node --watch --env-file=.env src/main.js",
         "start": "node --env-file=.env src/main.js"

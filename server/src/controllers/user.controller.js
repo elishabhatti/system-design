@@ -140,8 +140,10 @@ export const updateProfile = async (req, res) => {
 };
 
 export const toggleSubscription = async (req, res) => {
+  console.log("Toggle subscription request received");
   try {
     const subscriberId = req.user.id;
+    console.log(subscriberId, "subscriberId");
     const { channelId } = req.params;
 
     if (subscriberId === channelId) {
