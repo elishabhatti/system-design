@@ -77,7 +77,7 @@ export const getVideos = async (req, res) => {
       include: { 
         user: {
           include: {
-            subscribers: true
+            subscribers: true,  
           }
         } 
       },

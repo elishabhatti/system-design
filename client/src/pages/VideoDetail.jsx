@@ -28,20 +28,26 @@ export default function VideoDetail() {
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subscribingLoading, setSubscribingLoading] = useState(false);
 
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState(null);
+
   const countedSessionRef = useRef(new Set());
 
   useEffect(() => {
     loadVideos();
   }, []);
 
-  // Jab current video change ho, toh real DB subscriber count aur subscription status set karein
+  // Jab current video change ho, toh real DB subscriber count aur subscription status set karein (Type-safe comparison)
   useEffect(() => {
     if (currentVideo?.user) {
       const subs = currentVideo.user.subscribers || [];
       setSubscriberCount(subs.length);
       
-      const currentUserId = localStorage.getItem("userId"); 
-      const isAlreadySubscribed = subs.some(sub => sub.subscriberId === currentUserId);
+      const currentUserId = localStorage.getItem("userId") || localStorage.getItem("id"); 
+      
+      const isAlreadySubscribed = subs.some(
+        sub => String(sub.subscriberId) === String(currentUserId)
+      );
       
       setIsSubscribed(isAlreadySubscribed);
     }
@@ -88,6 +94,15 @@ export default function VideoDetail() {
 
   const handleSubscribeToggle = async () => {
     if (!currentVideo?.userId) return;
+
+    // Frontend Guard: Self-subscription check with toast alert
+    const currentUserId = localStorage.getItem("userId") || localStorage.getItem("id");
+    if (String(currentVideo.userId) === String(currentUserId)) {
+      setToastMessage("You can't subscribe your own channel Thanks!");
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+
     setSubscribingLoading(true);
     try {
       const res = await toggleSubscribeChannel(currentVideo.userId);
@@ -95,6 +110,9 @@ export default function VideoDetail() {
       setSubscriberCount(res.subscriberCount);
     } catch (err) {
       console.error("Failed to toggle subscription", err);
+      const errorMsg = err.response?.data?.error || "Subscription cant be updated.";
+      setToastMessage(errorMsg);
+      setTimeout(() => setToastMessage(null), 3000);
     } finally {
       setSubscribingLoading(false);
     }
@@ -150,7 +168,7 @@ export default function VideoDetail() {
   return (
     <>
       <Navbar />
-      <div className="max-w-full mx-auto px-4 lg:px-8 py-6 text-zinc-100 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="max-w-full mx-auto px-4 lg:px-8 py-6 text-zinc-100 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
         {/* Left: Player Card */}
         <div className="lg:col-span-8 xl:col-span-9">
           <div className="border border-white/10 rounded-2xl shadow-2xl overflow-hidden bg-[#121212]">
@@ -326,6 +344,14 @@ export default function VideoDetail() {
           </div>
         </div>
       </div>
+
+      {/* Toast Notification Popup */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-white/20 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all">
+          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+          <p className="text-xs font-medium">{toastMessage}</p>
+        </div>
+      )}
     </>
   );
 }
