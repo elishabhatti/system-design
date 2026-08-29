@@ -24,7 +24,7 @@ export const uploadVideo = async (req, res) => {
       return res.status(400).json({ error: "Video file is required." });
     }
 
-    const outputDir = path.join('uploads', 'hls',path.parse(file.filename).name);
+    const outputDir = path.join('uploads', 'hls', path.parse(file.filename).name);
     if (!fs.existsSync(outputDir)){
       fs.existsSync(path.join('uploads', 'hls')) || fs.mkdirSync(path.join('uploads', 'hls'));
       fs.mkdirSync(outputDir, { recursive: true });
@@ -68,9 +68,8 @@ export const uploadVideo = async (req, res) => {
       },
       include: {
         user: {
-          select: {
-            channelName: true,
-            avatarUrl: true,
+          include: {
+            subscribers: true,
           }
         }
       }
@@ -101,7 +100,13 @@ export const getVideos = async (req, res) => {
     }
 
     const videos = await prisma.video.findMany({
-      include: { user: true, subscribers: true },
+      include: { 
+        user: {
+          include: {
+            subscribers: true
+          }
+        } 
+      },
       orderBy: { uploadedAt: 'desc' }
     });
 

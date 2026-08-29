@@ -34,16 +34,20 @@ export default function VideoDetail() {
     loadVideos();
   }, []);
 
-  // Jab current video change ho, toh uske channel ki subscription status set karein
+  // Jab current video change ho, toh real DB subscriber count aur subscription status set karein
   useEffect(() => {
     if (currentVideo?.user) {
-      // Agar video object ke sath subscribers ki list aati hai ya count aata hai
-      setSubscriberCount(currentVideo.user.subscribersCount || 1400);
-      setIsSubscribed(currentVideo.user.isSubscribed || false);
+      const subs = currentVideo.user.subscribers || [];
+      setSubscriberCount(subs.length);
+      
+      const currentUserId = localStorage.getItem("userId"); 
+      const isAlreadySubscribed = subs.some(sub => sub.subscriberId === currentUserId);
+      
+      setIsSubscribed(isAlreadySubscribed);
     }
   }, [currentVideo]);
 
-  // 🔥 Real-time Socket.io Room & Listeners Integration
+  // Real-time Socket.io Room & Listeners Integration
   useEffect(() => {
     if (!currentVideo?.id) return;
 
@@ -86,7 +90,6 @@ export default function VideoDetail() {
     if (!currentVideo?.userId) return;
     setSubscribingLoading(true);
     try {
-      // API call to backend toggle subscription
       const res = await toggleSubscribeChannel(currentVideo.userId);
       setIsSubscribed(res.isSubscribed);
       setSubscriberCount(res.subscriberCount);
