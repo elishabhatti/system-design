@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { fetchVideos, incrementVideoView, toggleSubscribeChannel } from "../services/api";
+import { fetchVideos, incrementVideoView, toggleSubscribeChannel, getCurrentUser } from "../services/api";
 import { io } from "socket.io-client"; 
 import {
   ThumbsUp,
@@ -23,7 +23,8 @@ export default function VideoDetail() {
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [liked, setLiked] = useState(false);
 
-  // Subscription states
+  // User & Subscription states
+  const [currentUser, setCurrentUser] = useState(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subscribingLoading, setSubscribingLoading] = useState(false);
@@ -35,15 +36,25 @@ export default function VideoDetail() {
 
   useEffect(() => {
     loadVideos();
+    loadUserData();
   }, []);
 
-  // Jab current video change ho, toh real DB subscriber count aur subscription status set karein (Type-safe comparison)
+  const loadUserData = async () => {
+    try {
+      const data = await getCurrentUser();
+      const userObj = data?.user || data?.currentUser || data;
+      setCurrentUser(userObj);
+    } catch (err) {
+      console.error("Failed to fetch current user profile", err);
+    }
+  };
+
   useEffect(() => {
-    if (currentVideo?.user) {
+    if (currentVideo?.user && currentUser) {
       const subs = currentVideo.user.subscribers || [];
       setSubscriberCount(subs.length);
       
-      const currentUserId = localStorage.getItem("userId") || localStorage.getItem("id"); 
+      const currentUserId = currentUser.id || currentUser._id;
       
       const isAlreadySubscribed = subs.some(
         sub => String(sub.subscriberId) === String(currentUserId)
@@ -51,9 +62,8 @@ export default function VideoDetail() {
       
       setIsSubscribed(isAlreadySubscribed);
     }
-  }, [currentVideo]);
+  }, [currentVideo, currentUser]);
 
-  // Real-time Socket.io Room & Listeners Integration
   useEffect(() => {
     if (!currentVideo?.id) return;
 
@@ -95,9 +105,9 @@ export default function VideoDetail() {
   const handleSubscribeToggle = async () => {
     if (!currentVideo?.userId) return;
 
-    // Frontend Guard: Self-subscription check with toast alert
-    const currentUserId = localStorage.getItem("userId") || localStorage.getItem("id");
-    if (String(currentVideo.userId) === String(currentUserId)) {
+    // Frontend Guard: Self-subscription check using backend user data
+    const currentUserId = currentUser?.id || currentUser?._id;
+    if (currentUserId && String(currentVideo.userId) === String(currentUserId)) {
       setToastMessage("You can't subscribe your own channel Thanks!");
       setTimeout(() => setToastMessage(null), 3000);
       return;
