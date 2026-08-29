@@ -101,7 +101,7 @@ export const getVideos = async (req, res) => {
     }
 
     const videos = await prisma.video.findMany({
-      include: { user: true },
+      include: { user: true, subscribers: true },
       orderBy: { uploadedAt: 'desc' }
     });
 

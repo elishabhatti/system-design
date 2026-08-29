@@ -31,6 +31,11 @@ export const updateUserProfile = async (profileData) => {
   return response.data;
 }
 
+export const toggleSubscribeChannel = async (channelId) => {
+  const response = await API.post(`/auth/channels/${channelId}/subscribe`);
+  return response.data;
+}
+
 // --- Video APIs ---
 export const uploadVideo = async (formData, onUploadProgress) => {
   const response = await API.post('/videos/upload', formData, {
