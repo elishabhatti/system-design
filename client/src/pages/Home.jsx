@@ -99,7 +99,7 @@ export default function Home() {
   }
 
   return (
-    <div className="px-6 py-6 text-zinc-100 max-w-[1800px] mx-auto bg-black min-h-screen">
+    <div className="px-6 py-6 text-zinc-100 max-w-[1800px] mx-auto bg-black">
       {/* Filter Chips Bar */}
       <div className="flex items-center gap-2.5 overflow-x-auto pb-4 pt-1 mb-8 scrollbar-none sticky top-0 bg-black/90 backdrop-blur-md z-20 border-b border-zinc-900">
         {categories.map((cat) => {
