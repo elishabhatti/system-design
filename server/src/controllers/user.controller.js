@@ -138,3 +138,53 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ error: "Server error while updating profile" });
   }
 };
+
+export const toggleSubscription = async (req, res) => {
+  try {
+    const subscriberId = req.user.id;
+    const { channelId } = req.params;
+
+    if (subscriberId === channelId) {
+      return res.status(400).json({ error: "Aap apne channel ko subscribe nahi kar sakte." });
+    }
+
+    const existingSubscription = await prisma.subscription.findUnique({
+      where: {
+        subscriberId_channelId: {
+          subscriberId,
+          channelId,
+        },
+      },
+    });
+
+    let isSubscribed;
+
+    if (existingSubscription) {
+      await prisma.subscription.delete({
+        where: { id: existingSubscription.id },
+      });
+      isSubscribed = false;
+    } else {
+      await prisma.subscription.create({
+        data: {
+          subscriberId,
+          channelId,
+        },
+      });
+      isSubscribed = true;
+    }
+
+    const subscriberCount = await prisma.subscription.count({
+      where: { channelId },
+    });
+
+    res.status(200).json({
+      success: true,
+      isSubscribed,
+      subscriberCount,
+    });
+  } catch (error) {
+    console.error("Subscription error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
