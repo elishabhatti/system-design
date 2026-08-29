@@ -24,32 +24,6 @@ export const uploadVideo = async (req, res) => {
       return res.status(400).json({ error: "Video file is required." });
     }
 
-    const outputDir = path.join('uploads', 'hls', path.parse(file.filename).name);
-    if (!fs.existsSync(outputDir)){
-      fs.existsSync(path.join('uploads', 'hls')) || fs.mkdirSync(path.join('uploads', 'hls'));
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    const playlistPath = path.join(outputDir, 'playlist.m3u8');
-
-    ffmpeg(file.path, { timeout: 432000 })
-      .outputOptions([
-        '-profile:v baseline',
-        '-level 3.0',
-        '-start_number 0',
-        '-hls_time 10',
-        '-hls_list_size 0',
-        '-f hls'
-      ])
-      .output(playlistPath)
-      .on('end', () => {
-        console.log('HLS Transcoding finished successfully for:', file.filename);
-      })
-      .on('error', (err) => {
-        console.error('Error during HLS transcoding:', err);
-      })
-      .run();
-
     const newVideo = await prisma.video.create({
       data: {
         title: title || file.originalname,
