@@ -20,6 +20,8 @@ model User {
   
   videos        Video[]  
   views         View[]   
+  likes         Like[]
+  comments      Comment[]
 
   subscribers   Subscription[] @relation("UserSubscriptions")
   subscriptions Subscription[] @relation("UserFollowing")
@@ -36,6 +38,34 @@ model Subscription {
   createdAt    DateTime @default(now())
 
   @@unique([subscriberId, channelId]) 
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // System Design constraint: Ek user ek video ko sirf ek hi baar like kar sakta hai
+  @@unique([userId, videoId])
+  @@index([videoId]) // Fast lookup ke liye index
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId]) // Video ki comments list fetch karne ke liye fast index
 }
 
 model Video {
@@ -59,6 +89,8 @@ model Video {
   userId        String    
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   viewsRelation View[]    
+  likes         Like[]
+  comments      Comment[]
 }
 
 model View {
