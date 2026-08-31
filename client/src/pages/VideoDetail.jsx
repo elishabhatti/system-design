@@ -5,8 +5,8 @@ import {
   incrementVideoView, 
   toggleSubscribeChannel, 
   getCurrentUser, 
-  fetchComments, 
-  addComment 
+  fetchCommentsByVideo, 
+  addCommentToVideo 
 } from "../services/api";
 import { io } from "socket.io-client"; 
 import {
@@ -83,7 +83,7 @@ export default function VideoDetail() {
 
   const loadVideoComments = async (videoId) => {
     try {
-      const res = await fetchComments(videoId);
+      const res = await fetchCommentsByVideo(videoId);
       setComments(Array.isArray(res) ? res : (res.comments || []));
     } catch (err) {
       console.error("Failed to fetch comments", err);
@@ -183,7 +183,7 @@ export default function VideoDetail() {
 
     try {
       // 2. Background request to backend queue/DB
-      const res = await addComment(currentVideo.id, textToSend);
+      const res = await addCommentToVideo(currentVideo.id, textToSend);
       // Replace temporary comment with real response data if needed
       if (res?.comment) {
         setComments((prev) => prev.map(c => c.id === tempCommentId ? res.comment : c));
