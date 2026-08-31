@@ -31,6 +31,12 @@ export const updateUserProfile = async (profileData) => {
   return response.data;
 }
 
+// --- Subscription APIs ---
+export const fetchSubscriptions = async () => {
+  const response = await API.get('/auth/subscriptions');
+  return response.data;
+}
+
 export const toggleSubscribeChannel = async (channelId) => {
   const response = await API.post(`/auth/channels/${channelId}/subscribe`);
   return response.data;

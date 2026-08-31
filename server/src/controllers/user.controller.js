@@ -187,3 +187,31 @@ export const toggleSubscription = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+export const getAllSubscriptions = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const subscriptions = await prisma.subscription.findMany({
+      where: { subscriberId: userId },
+      include: {
+        channel: {
+          select: {
+            id: true,
+            channelName: true,
+            avatarUrl: true,
+            bio: true,
+            bannerUrl: true,
+          },
+        },
+      },
+    });
+
+    const subscribedChannels = subscriptions.map(sub => sub.channel);
+
+    res.status(200).json({ success: true, subscriptions: subscribedChannels });
+  } catch (error) {
+    console.error("Error fetching subscriptions:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
