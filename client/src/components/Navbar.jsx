@@ -35,7 +35,7 @@ export default function Navbar() {
             <span className="font-extrabold text-sm tracking-tight text-white flex items-center gap-1.5">
               ORBIT <span className="text-[9px] bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded-md text-zinc-400 font-mono">v2.4</span>
             </span>
-            <span className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Stream Studio</span>
+            <span className="text-[10px] text-zinc-500 font-mono font-bold tracking-widest uppercase">STUDIO</span>
           </div>
         </Link>
 
