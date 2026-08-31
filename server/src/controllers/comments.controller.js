@@ -68,7 +68,7 @@ export const updateComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const { content } = req.body;
-    const userId = req.userId; // from protect middleware
+    const userId = req.userId;
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentId }

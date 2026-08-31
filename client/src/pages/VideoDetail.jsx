@@ -6,7 +6,9 @@ import {
   toggleSubscribeChannel, 
   getCurrentUser, 
   fetchCommentsByVideo, 
-  addCommentToVideo 
+  addCommentToVideo,
+  updateCommentApi,
+  deleteCommentApi
 } from "../services/api";
 import { io } from "socket.io-client"; 
 import {
@@ -46,6 +48,10 @@ export default function VideoDetail() {
   const [comments, setComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState("");
   const [commentingLoading, setCommentingLoading] = useState(false);
+
+  // Comment Editing states
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editCommentText, setEditCommentText] = useState("");
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
@@ -184,7 +190,6 @@ export default function VideoDetail() {
     try {
       // 2. Background request to backend queue/DB
       const res = await addCommentToVideo(currentVideo.id, textToSend);
-      // Replace temporary comment with real response data if needed
       if (res?.comment) {
         setComments((prev) => prev.map(c => c.id === tempCommentId ? res.comment : c));
       }
@@ -360,31 +365,107 @@ export default function VideoDetail() {
                   </button>
                 </form>
 
-                {/* Comments List */}
+                {/* Comments List with Ownership Edit/Delete */}
                 <div className="flex flex-col gap-3 mt-2">
                   {comments.length === 0 ? (
                     <p className="text-xs text-zinc-600 text-center py-4 font-mono">No comments yet. Be the first to comment!</p>
                   ) : (
-                    comments.map((comm) => (
-                      <div key={comm.id} className="flex gap-3 items-start p-3 rounded-xl bg-black border border-zinc-900/60">
-                        <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden text-zinc-300">
-                          {comm.user?.avatarUrl ? (
-                            <img src={comm.user.avatarUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            (comm.user?.channelName || "U")[0].toUpperCase()
-                          )}
-                        </div>
-                        <div className="flex flex-col w-full">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
-                            <span className="text-[10px] text-zinc-600 font-mono">
-                              {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
-                            </span>
+                    comments.map((comm) => {
+                      const currentUserId = currentUser?.id || currentUser?._id;
+                      const commentUserId = comm.user?.id || comm.userId;
+                      const isOwner = currentUserId && String(commentUserId) === String(currentUserId);
+                      const isEditing = editingCommentId === comm.id;
+
+                      return (
+                        <div key={comm.id} className="flex gap-3 items-start p-3 rounded-xl bg-black border border-zinc-900/60 relative group">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden text-zinc-300">
+                            {comm.user?.avatarUrl ? (
+                              <img src={comm.user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              (comm.user?.channelName || "U")[0].toUpperCase()
+                            )}
                           </div>
-                          <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{comm.content}</p>
+                          
+                          <div className="flex flex-col w-full">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
+                              
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-zinc-600 font-mono">
+                                  {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
+                                </span>
+
+                                {/* 🛡️ Show Edit/Delete ONLY if user is the owner */}
+                                {isOwner && !isEditing && (
+                                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => {
+                                        setEditingCommentId(comm.id);
+                                        setEditCommentText(comm.content);
+                                      }}
+                                      className="text-[10px] text-zinc-400 hover:text-white px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          setComments(prev => prev.filter(c => c.id !== comm.id));
+                                          await deleteCommentApi(comm.id);
+                                        } catch (err) {
+                                          console.error("Failed to delete comment", err);
+                                          loadVideoComments(currentVideo.id);
+                                        }
+                                      }}
+                                      className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Content or Edit Input Mode */}
+                            {isEditing ? (
+                              <div className="mt-2 flex gap-2">
+                                <input
+                                  type="text"
+                                  value={editCommentText}
+                                  onChange={(e) => setEditCommentText(e.target.value)}
+                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                                />
+                                <button
+                                  onClick={async () => {
+                                    if (!editCommentText.trim()) return;
+                                    try {
+                                      const res = await updateCommentApi(comm.id, editCommentText);
+                                      if (res?.comment) {
+                                        setComments(prev => prev.map(c => c.id === comm.id ? res.comment : c));
+                                      }
+                                      setEditingCommentId(null);
+                                    } catch (err) {
+                                      console.error("Failed to update comment", err);
+                                    }
+                                  }}
+                                  className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold cursor-pointer"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingCommentId(null)}
+                                  className="bg-zinc-900 border border-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{comm.content}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
