@@ -45,7 +45,8 @@ export const uploadVideo = async (req, res) => {
           include: {
             subscribers: true,
           }
-        }
+        },
+        likes: true // Likes include karwaya yahan
       }
     });
     
@@ -79,7 +80,8 @@ export const getVideos = async (req, res) => {
           include: {
             subscribers: true,  
           }
-        } 
+        },
+        likes: true 
       },
       orderBy: { uploadedAt: 'desc' }
     });
@@ -206,6 +208,7 @@ export const toggleVideoLike = async (req, res) => {
     const likeCount = await prisma.like.count({
       where: { videoId }
     });
+    await redis.del("videos:all");
 
     res.status(200).json({ 
       success: true, 
