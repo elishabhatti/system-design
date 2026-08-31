@@ -23,6 +23,10 @@ import {
   Check,
   MessageSquare,
   Send,
+  X,
+  Copy,
+  Code,
+  Mail
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
@@ -42,6 +46,10 @@ export default function VideoDetail() {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [likeLoading, setLikeLoading] = useState(false);
+
+  // Share Modal states
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // User & Subscription states
   const [currentUser, setCurrentUser] = useState(null);
@@ -81,10 +89,8 @@ export default function VideoDetail() {
     }
   }, [id, videos]);
 
-  // Set likes data when currentVideo or currentUser changes
   useEffect(() => {
     if (currentVideo) {
-      // Likes count handle karein (agar backend se count ya likes array mil rahi ho)
       const count = currentVideo._count?.likes ?? currentVideo.likesCount ?? (Array.isArray(currentVideo.likes) ? currentVideo.likes.length : 0);
       setLikeCount(count);
 
@@ -186,7 +192,6 @@ export default function VideoDetail() {
     }
   };
 
-  // 🚀 Like Toggle Handler with Optimistic UI Update
   const handleLikeToggle = async () => {
     if (!currentVideo?.id || likeLoading) return;
 
@@ -194,7 +199,6 @@ export default function VideoDetail() {
     const previousLiked = liked;
     const previousCount = likeCount;
 
-    // Instant Optimistic Update
     const newLikedState = !liked;
     setLiked(newLikedState);
     setLikeCount(prev => (newLikedState ? prev + 1 : Math.max(0, prev - 1)));
@@ -207,17 +211,13 @@ export default function VideoDetail() {
       }
     } catch (err) {
       console.error("Failed to toggle like", err);
-      // Rollback on failure
       setLiked(previousLiked);
       setLikeCount(previousCount);
       setToastMessage("Could not update like status.");
       setTimeout(() => setToastMessage(null), 3000);
-    } finally {
-      setLikeLoading(false);
     }
   };
 
-  // 🚀 Optimistic UI Comment Handler
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newCommentText.trim() || !currentVideo?.id) return;
@@ -268,6 +268,25 @@ export default function VideoDetail() {
     }
   };
 
+  // Share helpers
+  const currentVideoUrl = window.location.href;
+  const shareTitle = currentVideo?.title || "Check out this video";
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(currentVideoUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const shareLinks = {
+    whatsapp: `https://api.whatsapp.com/send?text=${encodeURIComponent(shareTitle + " " + currentVideoUrl)}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(currentVideoUrl)}`,
+    twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(currentVideoUrl)}&text=${encodeURIComponent(shareTitle)}`,
+    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentVideoUrl)}`,
+    reddit: `https://www.reddit.com/submit?url=${encodeURIComponent(currentVideoUrl)}&title=${encodeURIComponent(shareTitle)}`,
+    email: `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent("Check out this awesome video: " + currentVideoUrl)}`
+  };
+
   if (loadingVideos) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[75vh] bg-black">
@@ -288,7 +307,7 @@ export default function VideoDetail() {
   const sidebarVideos = videos.filter((v) => String(v.id) !== String(currentVideo.id));
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
+    <div className="min-h-screen bg-black text-zinc-100 relative">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
         
@@ -356,7 +375,11 @@ export default function VideoDetail() {
                     <span>{likeCount}</span>
                   </button>
 
-                  <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300">
+                  {/* 🔗 Open Share Modal Button */}
+                  <button
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300"
+                  >
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Share</span>
                   </button>
@@ -398,7 +421,6 @@ export default function VideoDetail() {
                   </h3>
                 </div>
 
-                {/* Comment Input Box */}
                 <form onSubmit={handleAddComment} className="flex gap-2 items-center">
                   <input
                     type="text"
@@ -416,7 +438,6 @@ export default function VideoDetail() {
                   </button>
                 </form>
 
-                {/* Comments List with Ownership Edit/Delete */}
                 <div className="flex flex-col gap-3 mt-2">
                   {comments.length === 0 ? (
                     <p className="text-xs text-zinc-600 text-center py-4 font-mono">No comments yet. Be the first to comment!</p>
@@ -565,6 +586,128 @@ export default function VideoDetail() {
           </div>
         </div>
       </div>
+
+      {/* 🚀 SHARE POPUP MODAL */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900">
+              <h3 className="font-bold text-sm text-white">Share video</h3>
+              <button 
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-900 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 flex flex-col gap-6">
+              
+              {/* Social Share Grid */}
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 text-center">
+                
+                {/* WhatsApp */}
+                <a 
+                  href={shareLinks.whatsapp} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black transition shadow-md">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <span className="text-[11px] text-zinc-400 group-hover:text-white">WhatsApp</span>
+                </a>
+
+                {/* Facebook */}
+                <a 
+                  href={shareLinks.facebook} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition shadow-md">
+                    <Share2 className="w-5 h-5" />
+                  </div>
+                  <span className="text-[11px] text-zinc-400 group-hover:text-white">Facebook</span>
+                </a>
+
+                {/* X (Twitter) */}
+                <a 
+                  href={shareLinks.twitter} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200 group-hover:bg-zinc-100 group-hover:text-black transition shadow-md font-bold">
+                    𝕏
+                  </div>
+                  <span className="text-[11px] text-zinc-400 group-hover:text-white">X</span>
+                </a>
+
+                {/* LinkedIn */}
+                <a 
+                  href={shareLinks.linkedin} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sky-400 group-hover:bg-sky-600 group-hover:text-white transition shadow-md font-bold">
+                    in
+                  </div>
+                  <span className="text-[11px] text-zinc-400 group-hover:text-white">LinkedIn</span>
+                </a>
+
+                {/* Reddit */}
+                <a 
+                  href={shareLinks.reddit} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-orange-400 group-hover:bg-orange-600 group-hover:text-white transition shadow-md font-bold">
+                    R
+                  </div>
+                  <span className="text-[11px] text-zinc-400 group-hover:text-white">Reddit</span>
+                </a>
+
+                {/* Email */}
+                <a 
+                  href={shareLinks.email}
+                  className="flex flex-col items-center gap-1.5 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 group-hover:bg-zinc-200 group-hover:text-black transition shadow-md">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <span className="text-[11px] text-zinc-400 group-hover:text-white">Email</span>
+                </a>
+
+              </div>
+
+              {/* Copy URL Input Group */}
+              <div className="flex items-center gap-2 bg-black border border-zinc-800 rounded-xl p-1.5">
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={currentVideoUrl}
+                  className="w-full bg-transparent px-3 text-xs text-zinc-300 focus:outline-none font-mono"
+                />
+                <button
+                  onClick={copyToClipboard}
+                  className="bg-white hover:bg-zinc-200 text-black px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md active:scale-95"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? "Copied" : "Copy"}</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
 
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-800 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all">
