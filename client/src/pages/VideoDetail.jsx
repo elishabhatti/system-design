@@ -438,6 +438,7 @@ export default function VideoDetail() {
                   </button>
                 </form>
 
+                {/* Comments List Layout */}
                 <div className="flex flex-col gap-3 mt-2">
                   {comments.length === 0 ? (
                     <p className="text-xs text-zinc-600 text-center py-4 font-mono">No comments yet. Be the first to comment!</p>
@@ -459,22 +460,20 @@ export default function VideoDetail() {
                           </div>
                           
                           <div className="flex flex-col w-full">
+                            {/* Top Row: Channel Name + (Hover-based Edit/Delete + Date) */}
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
                               
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-zinc-600 font-mono">
-                                  {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
-                                </span>
-
+                              <div className="flex items-center gap-2.5">
+                                {/* 🛠️ EDIT/DELETE: Default hidden, appears only on hover of the comment box */}
                                 {isOwner && !isEditing && (
-                                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                     <button
                                       onClick={() => {
                                         setEditingCommentId(comm.id);
                                         setEditCommentText(comm.content);
                                       }}
-                                      className="text-[10px] text-zinc-400 hover:text-white px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer"
+                                      className="text-[10px] text-zinc-400 hover:text-white px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer transition"
                                     >
                                       Edit
                                     </button>
@@ -488,12 +487,16 @@ export default function VideoDetail() {
                                           loadVideoComments(currentVideo.id);
                                         }
                                       }}
-                                      className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer"
+                                      className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer transition"
                                     >
                                       Delete
                                     </button>
                                   </div>
                                 )}
+
+                                <span className="text-[10px] text-zinc-600 font-mono">
+                                  {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
+                                </span>
                               </div>
                             </div>
 
