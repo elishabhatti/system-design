@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/:videoId/comments', getCommentsByVideo);
 router.post('/:videoId/comments', protect, addComment);
-router.put('/comments/:commentId', protect, updateComment);  
-router.delete('/comments/:commentId', protect, deleteComment);
+router.put('/:commentId', protect, updateComment);  
+router.delete('/:commentId', protect, deleteComment);
 
 export default router;

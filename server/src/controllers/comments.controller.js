@@ -1,6 +1,6 @@
 import prisma from '../config/db.js';
 
-// Get all comments for a video
+// Get all comments
 export const getCommentsByVideo = async (req, res) => {
   try {
     const { videoId } = req.params;
@@ -24,6 +24,7 @@ export const getCommentsByVideo = async (req, res) => {
   }
 };
 
+// Add Comment
 export const addComment = async (req, res) => {
   console.log("addComment called with req.body:", req.body);
   try {

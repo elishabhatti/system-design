@@ -73,12 +73,14 @@ export const addCommentToVideo = async (videoId, commentData) => {
   return response.data;
 }
 
-export const updateCommentApi = async (commentId, commentData) => {
-  const response = await API.put(`/api/comments/comments/${commentId}`, { content: commentData });
+// Update Comment API
+export const updateCommentApi = async (commentId, content) => {
+  const response = await API.put(`/comments/${commentId}`, { content });
   return response.data;
 };
 
+// Delete Comment API
 export const deleteCommentApi = async (commentId) => {
-  const response = await API.delete(`/api/comments/comments/${commentId}`);
+  const response = await API.delete(`/comments/${commentId}`);
   return response.data;
 };
