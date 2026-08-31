@@ -1,4 +1,4 @@
-import prisma from '../config/db.js';
+import prisma from "../config/db.js";
 
 // Get all comments
 export const getCommentsByVideo = async (req, res) => {
@@ -12,10 +12,10 @@ export const getCommentsByVideo = async (req, res) => {
             id: true,
             channelName: true,
             avatarUrl: true,
-          }
-        }
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
     res.status(200).json({ comments });
   } catch (error) {
@@ -26,15 +26,11 @@ export const getCommentsByVideo = async (req, res) => {
 
 // Add Comment
 export const addComment = async (req, res) => {
-  console.log("addComment called with req.body:", req.body);
   try {
     const { videoId } = req.params;
-    
-    // Yahan hum check kar rahe hain ke key 'content' ho ya 'comment'
-    const commentText = req.body.content || req.body.comment || Object.values(req.body)[0];
-    
-    console.log("Adding comment for videoId:", videoId, "with content:", commentText);
-    const userId = req.userId; 
+    const commentText =
+      req.body.content || req.body.comment || Object.values(req.body)[0];
+    const userId = req.userId;
 
     if (!commentText || !String(commentText).trim()) {
       return res.status(400).json({ error: "Comment content cannot be empty" });
@@ -52,9 +48,9 @@ export const addComment = async (req, res) => {
             id: true,
             channelName: true,
             avatarUrl: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     res.status(201).json({ message: "Comment added successfully", comment });
@@ -72,7 +68,7 @@ export const updateComment = async (req, res) => {
     const userId = req.userId;
 
     const comment = await prisma.comment.findUnique({
-      where: { id: commentId }
+      where: { id: commentId },
     });
 
     if (!comment) {
@@ -81,7 +77,9 @@ export const updateComment = async (req, res) => {
 
     // Ownership Check
     if (comment.userId !== userId) {
-      return res.status(403).json({ error: "Unauthorized to update this comment" });
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to update this comment" });
     }
 
     if (!content || !content.trim()) {
@@ -93,12 +91,17 @@ export const updateComment = async (req, res) => {
       data: { content: content.trim() },
       include: {
         user: {
-          select: { id: true, channelName: true, avatarUrl: true }
-        }
-      }
+          select: { id: true, channelName: true, avatarUrl: true },
+        },
+      },
     });
 
-    res.status(200).json({ message: "Comment updated successfully", comment: updatedComment });
+    res
+      .status(200)
+      .json({
+        message: "Comment updated successfully",
+        comment: updatedComment,
+      });
   } catch (error) {
     console.error("Error updating comment:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -112,7 +115,7 @@ export const deleteComment = async (req, res) => {
     const userId = req.userId;
 
     const comment = await prisma.comment.findUnique({
-      where: { id: commentId }
+      where: { id: commentId },
     });
 
     if (!comment) {
@@ -121,14 +124,18 @@ export const deleteComment = async (req, res) => {
 
     // Ownership Check
     if (comment.userId !== userId) {
-      return res.status(403).json({ error: "Unauthorized to delete this comment" });
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to delete this comment" });
     }
 
     await prisma.comment.delete({
-      where: { id: commentId }
+      where: { id: commentId },
     });
 
-    res.status(200).json({ message: "Comment deleted successfully", commentId });
+    res
+      .status(200)
+      .json({ message: "Comment deleted successfully", commentId });
   } catch (error) {
     console.error("Error deleting comment:", error);
     res.status(500).json({ error: "Internal server error" });
