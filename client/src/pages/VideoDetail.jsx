@@ -8,7 +8,8 @@ import {
   fetchCommentsByVideo, 
   addCommentToVideo,
   updateCommentApi,
-  deleteCommentApi
+  deleteCommentApi,
+  toggleVideoLikeApi
 } from "../services/api";
 import { io } from "socket.io-client"; 
 import {
@@ -36,7 +37,11 @@ export default function VideoDetail() {
   const [videos, setVideos] = useState([]);
   const [currentVideo, setCurrentVideo] = useState(null);
   const [loadingVideos, setLoadingVideos] = useState(true);
+
+  // Likes states
   const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likeLoading, setLikeLoading] = useState(false);
 
   // User & Subscription states
   const [currentUser, setCurrentUser] = useState(null);
@@ -47,7 +52,6 @@ export default function VideoDetail() {
   // Comments states
   const [comments, setComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState("");
-  const [commentingLoading, setCommentingLoading] = useState(false);
 
   // Comment Editing states
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -76,6 +80,23 @@ export default function VideoDetail() {
       }
     }
   }, [id, videos]);
+
+  // Set likes data when currentVideo or currentUser changes
+  useEffect(() => {
+    if (currentVideo) {
+      // Likes count handle karein (agar backend se count ya likes array mil rahi ho)
+      const count = currentVideo._count?.likes ?? currentVideo.likesCount ?? (Array.isArray(currentVideo.likes) ? currentVideo.likes.length : 0);
+      setLikeCount(count);
+
+      if (currentUser && Array.isArray(currentVideo.likes)) {
+        const currentUserId = currentUser.id || currentUser._id;
+        const hasLiked = currentVideo.likes.some(
+          (l) => String(l.userId || l.id) === String(currentUserId)
+        );
+        setLiked(hasLiked);
+      }
+    }
+  }, [currentVideo, currentUser]);
 
   const loadUserData = async () => {
     try {
@@ -165,6 +186,37 @@ export default function VideoDetail() {
     }
   };
 
+  // 🚀 Like Toggle Handler with Optimistic UI Update
+  const handleLikeToggle = async () => {
+    if (!currentVideo?.id || likeLoading) return;
+
+    setLikeLoading(true);
+    const previousLiked = liked;
+    const previousCount = likeCount;
+
+    // Instant Optimistic Update
+    const newLikedState = !liked;
+    setLiked(newLikedState);
+    setLikeCount(prev => (newLikedState ? prev + 1 : Math.max(0, prev - 1)));
+
+    try {
+      const res = await toggleVideoLikeApi(currentVideo.id);
+      if (res?.success) {
+        setLiked(res.isLiked);
+        setLikeCount(res.likeCount);
+      }
+    } catch (err) {
+      console.error("Failed to toggle like", err);
+      // Rollback on failure
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
+      setToastMessage("Could not update like status.");
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setLikeLoading(false);
+    }
+  };
+
   // 🚀 Optimistic UI Comment Handler
   const handleAddComment = async (e) => {
     e.preventDefault();
@@ -182,13 +234,11 @@ export default function VideoDetail() {
       }
     };
 
-    // 1. Instant UI update (Optimistic rendering)
     setComments((prev) => [optimisticComment, ...prev]);
     const textToSend = newCommentText.trim();
     setNewCommentText("");
 
     try {
-      // 2. Background request to backend queue/DB
       const res = await addCommentToVideo(currentVideo.id, textToSend);
       if (res?.comment) {
         setComments((prev) => prev.map(c => c.id === tempCommentId ? res.comment : c));
@@ -294,7 +344,8 @@ export default function VideoDetail() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setLiked(!liked)}
+                    onClick={handleLikeToggle}
+                    disabled={likeLoading}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                       liked
                         ? "bg-white border-white text-black font-bold shadow-lg"
@@ -302,7 +353,7 @@ export default function VideoDetail() {
                     }`}
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
-                    <span>{liked ? "28.1K" : "28K"}</span>
+                    <span>{likeCount}</span>
                   </button>
 
                   <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300">
@@ -326,7 +377,7 @@ export default function VideoDetail() {
                   </span>
                   <span className="flex items-center gap-1.5">
                     <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
-                    28K likes
+                    {likeCount} likes
                   </span>
                   <span className="flex items-center gap-1.5 font-mono text-[11px]">
                     <Clock className="w-3.5 h-3.5 text-zinc-500" />
@@ -395,7 +446,6 @@ export default function VideoDetail() {
                                   {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
                                 </span>
 
-                                {/* 🛡️ Show Edit/Delete ONLY if user is the owner */}
                                 {isOwner && !isEditing && (
                                   <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
@@ -426,7 +476,6 @@ export default function VideoDetail() {
                               </div>
                             </div>
 
-                            {/* Content or Edit Input Mode */}
                             {isEditing ? (
                               <div className="mt-2 flex gap-2">
                                 <input

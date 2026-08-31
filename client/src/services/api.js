@@ -84,3 +84,9 @@ export const deleteCommentApi = async (commentId) => {
   const response = await API.delete(`/comments/${commentId}`);
   return response.data;
 };
+
+// --- Like APIs ---
+export const toggleVideoLikeApi = async (videoId) => {
+  const response = await API.post(`/videos/${videoId}/like`);
+  return response.data;
+};
