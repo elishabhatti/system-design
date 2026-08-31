@@ -60,3 +60,15 @@ export const incrementVideoView = async (videoId) => {
   const response = await API.post(`/videos/${videoId}/view`);
   return response.data;
 };
+
+
+// --- Comment APIs ---
+export const fetchCommentsByVideo = async (videoId) => {
+  const response = await API.get(`/comments/${videoId}/comments`);
+  return response.data;
+};
+
+export const addCommentToVideo = async (videoId, commentData) => {
+  const response = await API.post(`/comments/${videoId}/comments`, commentData);
+  return response.data;
+}
