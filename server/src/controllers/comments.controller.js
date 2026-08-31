@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../config/db.js';
 
 // Get all comments for a video
 export const getCommentsByVideo = async (req, res) => {
@@ -27,10 +26,12 @@ export const getCommentsByVideo = async (req, res) => {
 
 // Add a new comment
 export const addComment = async (req, res) => {
+  console.log("addComment called with req.body:", req.body);
   try {
     const { videoId } = req.params;
     const { content } = req.body;
-    const userId = req.user.id; // from protect middleware
+    console.log("Adding comment for videoId:", videoId, "with content:", content);
+    const userId = req.userId; 
 
     if (!content || !content.trim()) {
       return res.status(400).json({ error: "Comment content cannot be empty" });
