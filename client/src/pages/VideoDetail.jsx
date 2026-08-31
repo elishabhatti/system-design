@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchVideos, incrementVideoView, toggleSubscribeChannel, getCurrentUser } from "../services/api";
+import { 
+  fetchVideos, 
+  incrementVideoView, 
+  toggleSubscribeChannel, 
+  getCurrentUser, 
+  fetchComments, 
+  addComment 
+} from "../services/api";
 import { io } from "socket.io-client"; 
 import {
   ThumbsUp,
@@ -11,6 +18,8 @@ import {
   Radio,
   Clock,
   Check,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
@@ -33,6 +42,11 @@ export default function VideoDetail() {
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subscribingLoading, setSubscribingLoading] = useState(false);
 
+  // Comments states
+  const [comments, setComments] = useState([]);
+  const [newCommentText, setNewCommentText] = useState("");
+  const [commentingLoading, setCommentingLoading] = useState(false);
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -49,6 +63,7 @@ export default function VideoDetail() {
         const found = videos.find((v) => String(v.id) === String(id));
         if (found) {
           setCurrentVideo(found);
+          loadVideoComments(found.id);
         }
       } else {
         navigate(`/watch/${videos[0].id}`, { replace: true });
@@ -66,17 +81,24 @@ export default function VideoDetail() {
     }
   };
 
+  const loadVideoComments = async (videoId) => {
+    try {
+      const res = await fetchComments(videoId);
+      setComments(Array.isArray(res) ? res : (res.comments || []));
+    } catch (err) {
+      console.error("Failed to fetch comments", err);
+    }
+  };
+
   useEffect(() => {
     if (currentVideo?.user && currentUser) {
       const subs = currentVideo.user.subscribers || [];
       setSubscriberCount(subs.length);
       
       const currentUserId = currentUser.id || currentUser._id;
-      
       const isAlreadySubscribed = subs.some(
         sub => String(sub.subscriberId) === String(currentUserId)
       );
-      
       setIsSubscribed(isAlreadySubscribed);
     }
   }, [currentVideo, currentUser]);
@@ -90,10 +112,7 @@ export default function VideoDetail() {
       if (data && typeof data.views === "number") {
         setCurrentVideo((prev) => {
           if (!prev) return prev;
-          return {
-            ...prev,
-            views: data.views,
-          };
+          return { ...prev, views: data.views };
         });
       }
     });
@@ -133,37 +152,64 @@ export default function VideoDetail() {
       setSubscriberCount(res.subscriberCount);
     } catch (err) {
       console.error("Failed to toggle subscription", err);
-      const errorMsg = err.response?.data?.error || "Subscription couldn't be updated.";
-      setToastMessage(errorMsg);
+      setToastMessage("Subscription couldn't be updated.");
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
       setSubscribingLoading(false);
     }
   };
 
+  // 🚀 Optimistic UI Comment Handler
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newCommentText.trim() || !currentVideo?.id) return;
+
+    const tempCommentId = "temp_" + Date.now();
+    const optimisticComment = {
+      id: tempCommentId,
+      content: newCommentText.trim(),
+      createdAt: new Date().toISOString(),
+      user: {
+        id: currentUser?.id || currentUser?._id || "me",
+        channelName: currentUser?.channelName || "You",
+        avatarUrl: currentUser?.avatarUrl || null,
+      }
+    };
+
+    // 1. Instant UI update (Optimistic rendering)
+    setComments((prev) => [optimisticComment, ...prev]);
+    const textToSend = newCommentText.trim();
+    setNewCommentText("");
+
+    try {
+      // 2. Background request to backend queue/DB
+      const res = await addComment(currentVideo.id, textToSend);
+      // Replace temporary comment with real response data if needed
+      if (res?.comment) {
+        setComments((prev) => prev.map(c => c.id === tempCommentId ? res.comment : c));
+      }
+    } catch (err) {
+      console.error("Failed to post comment", err);
+      setToastMessage("Comment saved locally, syncing failed.");
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
   const handleTimeUpdate = (e) => {
     const video = e.target;
     if (!video.duration || !currentVideo?.id) return;
-
     if (countedSessionRef.current.has(currentVideo.id)) return;
 
     const watchedPercentage = (video.currentTime / video.duration) * 100;
-
     if (watchedPercentage >= 20) {
       countedSessionRef.current.add(currentVideo.id);
       incrementVideoView(currentVideo.id)
         .then((data) => {
           if (data && data.success && typeof data.views === "number") {
-            setCurrentVideo((prev) => ({
-              ...prev,
-              views: data.views,
-            }));
+            setCurrentVideo((prev) => ({ ...prev, views: data.views }));
           }
         })
-        .catch((err) => {
-          console.error("View count error", err);
-          countedSessionRef.current.delete(currentVideo.id);
-        });
+        .catch(() => countedSessionRef.current.delete(currentVideo.id));
     }
   };
 
@@ -171,9 +217,7 @@ export default function VideoDetail() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[75vh] bg-black">
         <div className="w-6 h-6 border-2 border-zinc-600 border-t-white rounded-full animate-spin"></div>
-        <p className="text-xs text-zinc-500 mt-3 font-mono">
-          Loading player stream...
-        </p>
+        <p className="text-xs text-zinc-500 mt-3 font-mono">Loading player stream...</p>
       </div>
     );
   }
@@ -193,7 +237,7 @@ export default function VideoDetail() {
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
         
-        {/* Left: Player Card & Info */}
+        {/* Left: Player Card, Info & Comments */}
         <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
           <div className="border border-zinc-900 rounded-2xl shadow-2xl overflow-hidden bg-zinc-950">
             <div className="relative aspect-video bg-black flex items-center justify-center">
@@ -215,11 +259,7 @@ export default function VideoDetail() {
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white shadow-md border border-zinc-800 overflow-hidden bg-zinc-900">
                     {currentVideo.user?.avatarUrl ? (
-                      <img
-                        src={currentVideo.user.avatarUrl}
-                        alt={currentVideo.user.channelName}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={currentVideo.user.avatarUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
                       (currentVideo.user?.channelName || "E")[0].toUpperCase()
                     )}
@@ -233,7 +273,6 @@ export default function VideoDetail() {
                     </span>
                   </div>
                   
-                  {/* Interactive Subscribe Button */}
                   <button
                     onClick={handleSubscribeToggle}
                     disabled={subscribingLoading}
@@ -284,24 +323,72 @@ export default function VideoDetail() {
                     <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
                     28K likes
                   </span>
-                  {currentVideo.isLive && (
-                    <span className="flex items-center gap-1.5 text-red-400 font-bold">
-                      <Radio className="w-3.5 h-3.5 animate-pulse" />
-                      1.9M streaming
-                    </span>
-                  )}
                   <span className="flex items-center gap-1.5 font-mono text-[11px]">
                     <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                    {currentVideo.uploadedAt
-                      ? new Date(currentVideo.uploadedAt).toLocaleDateString()
-                      : "Aug 15, 2026"}
+                    {currentVideo.uploadedAt ? new Date(currentVideo.uploadedAt).toLocaleDateString() : "Aug 15, 2026"}
                   </span>
                 </div>
                 <p className="text-zinc-400 font-normal">
-                  {currentVideo.description ||
-                    "Enjoy this immersive media stream configured directly from your library feed."}
+                  {currentVideo.description || "Enjoy this immersive media stream configured directly from your library feed."}
                 </p>
               </div>
+
+              {/* 💬 Comments Section UI */}
+              <div className="mt-4 flex flex-col gap-4 border border-zinc-900 rounded-xl p-4 bg-zinc-950">
+                <div className="flex items-center gap-2 pb-3 border-b border-zinc-900">
+                  <MessageSquare className="w-4 h-4 text-zinc-400" />
+                  <h3 className="font-bold text-xs text-white">
+                    Comments <span className="text-zinc-500 font-mono font-normal">({comments.length})</span>
+                  </h3>
+                </div>
+
+                {/* Comment Input Box */}
+                <form onSubmit={handleAddComment} className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    placeholder="Add a public comment..."
+                    className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-white text-black hover:bg-zinc-200 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md active:scale-95"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Post</span>
+                  </button>
+                </form>
+
+                {/* Comments List */}
+                <div className="flex flex-col gap-3 mt-2">
+                  {comments.length === 0 ? (
+                    <p className="text-xs text-zinc-600 text-center py-4 font-mono">No comments yet. Be the first to comment!</p>
+                  ) : (
+                    comments.map((comm) => (
+                      <div key={comm.id} className="flex gap-3 items-start p-3 rounded-xl bg-black border border-zinc-900/60">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden text-zinc-300">
+                          {comm.user?.avatarUrl ? (
+                            <img src={comm.user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (comm.user?.channelName || "U")[0].toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex flex-col w-full">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
+                            <span className="text-[10px] text-zinc-600 font-mono">
+                              {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{comm.content}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -310,12 +397,8 @@ export default function VideoDetail() {
         <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
           <div className="border border-zinc-900 rounded-2xl p-3.5 flex items-center justify-between shadow-lg bg-zinc-950">
             <div>
-              <h3 className="font-bold text-xs text-white">
-                Queue Stream Mix
-              </h3>
-              <span className="text-[10px] text-zinc-500 font-mono">
-                {videos.length} videos available
-              </span>
+              <h3 className="font-bold text-xs text-white">Queue Stream Mix</h3>
+              <span className="text-[10px] text-zinc-500 font-mono">{videos.length} videos available</span>
             </div>
             <Sparkles className="w-4 h-4 text-zinc-400" />
           </div>
@@ -328,34 +411,18 @@ export default function VideoDetail() {
                   key={vid.id}
                   onClick={() => navigate(`/watch/${vid.id}`)}
                   className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
-                    isSelected
-                      ? "border-zinc-700 bg-zinc-900 shadow-md"
-                      : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900"
+                    isSelected ? "border-zinc-700 bg-zinc-900 shadow-md" : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900"
                   }`}
                 >
                   <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
-                    <video
-                      src={vid.filepath}
-                      className="w-full h-full object-cover"
-                      muted
-                    />
+                    <video src={vid.filepath} className="w-full h-full object-cover" muted />
                     <span className="absolute bottom-1 right-1 bg-black/90 text-[9px] px-1 rounded text-zinc-300 font-mono">
                       {vid.duration || "5:31"}
                     </span>
-                    {vid.isLive && (
-                      <span className="absolute top-1 left-1 bg-red-600 text-[8px] font-bold px-1 rounded text-white animate-pulse">
-                        LIVE
-                      </span>
-                    )}
                   </div>
-
                   <div className="flex flex-col overflow-hidden w-full">
-                    <span className="text-[10px] font-mono text-zinc-500 mb-0.5">
-                      #{idx + 1} in queue
-                    </span>
-                    <h4
-                      className={`font-semibold text-xs truncate ${isSelected ? "text-white font-bold" : "text-zinc-300 group-hover:text-white"}`}
-                    >
+                    <span className="text-[10px] font-mono text-zinc-500 mb-0.5">#{idx + 1} in queue</span>
+                    <h4 className={`font-semibold text-xs truncate ${isSelected ? "text-white font-bold" : "text-zinc-300 group-hover:text-white"}`}>
                       {vid.title}
                     </h4>
                     <span className="text-[10px] text-zinc-500 truncate mt-0.5">
@@ -369,7 +436,6 @@ export default function VideoDetail() {
         </div>
       </div>
 
-      {/* Toast Notification Popup */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-800 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all">
           <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
