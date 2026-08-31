@@ -9,5 +9,6 @@ router.post('/upload', protect, upload.single('video'), uploadVideo);
 router.get('/', getVideos);
 router.delete('/:id', protect, deleteVideo);
 router.post('/:id/view', protect, incrementVideoView);;
+router.post('/:videoId/like', protect, toggleVideoLike);
 
 export default router;

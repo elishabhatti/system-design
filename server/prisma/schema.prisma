@@ -49,7 +49,6 @@ model Like {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
-  // System Design constraint: Ek user ek video ko sirf ek hi baar like kar sakta hai
   @@unique([userId, videoId])
   @@index([videoId]) // Fast lookup ke liye index
 }

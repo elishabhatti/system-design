@@ -178,3 +178,42 @@ export const incrementVideoView = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+export const toggleVideoLike = async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const userId = req.userId;
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_videoId: { userId, videoId }
+      }
+    });
+
+    let isLiked = false;
+
+    if (existingLike) {
+      await prisma.like.delete({
+        where: { id: existingLike.id }
+      });
+      isLiked = false;
+    } else {
+      await prisma.like.create({
+        data: { userId, videoId }
+      });
+      isLiked = true;
+    }
+
+    const likeCount = await prisma.like.count({
+      where: { videoId }
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      isLiked, 
+      likeCount 
+    });
+  } catch (error) {
+    console.error("Error toggling like:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
