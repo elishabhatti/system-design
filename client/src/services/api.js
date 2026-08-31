@@ -69,6 +69,6 @@ export const fetchCommentsByVideo = async (videoId) => {
 };
 
 export const addCommentToVideo = async (videoId, commentData) => {
-  const response = await API.post(`/comments/${videoId}/comments`, commentData);
+  const response = await API.post(`/comments/${videoId}/comments`, {content: commentData});
   return response.data;
 }

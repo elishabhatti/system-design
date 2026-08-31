@@ -24,22 +24,24 @@ export const getCommentsByVideo = async (req, res) => {
   }
 };
 
-// Add a new comment
 export const addComment = async (req, res) => {
   console.log("addComment called with req.body:", req.body);
   try {
     const { videoId } = req.params;
-    const { content } = req.body;
-    console.log("Adding comment for videoId:", videoId, "with content:", content);
+    
+    // Yahan hum check kar rahe hain ke key 'content' ho ya 'comment'
+    const commentText = req.body.content || req.body.comment || Object.values(req.body)[0];
+    
+    console.log("Adding comment for videoId:", videoId, "with content:", commentText);
     const userId = req.userId; 
 
-    if (!content || !content.trim()) {
+    if (!commentText || !String(commentText).trim()) {
       return res.status(400).json({ error: "Comment content cannot be empty" });
     }
 
     const comment = await prisma.comment.create({
       data: {
-        content: content.trim(),
+        content: String(commentText).trim(),
         videoId,
         userId,
       },
