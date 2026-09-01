@@ -1,8 +1,8 @@
-import prisma from "../config/db";
+import prisma from "../config/db.js";
 
-exports.toggleSubscribe = async (req, res) => {
+export const toggleSubscribe = async (req, res) => {
   try {
-    const subscriberId = req.user.id;
+    const subscriberId = req.user.id || req.userId;
     const { channelId } = req.params;
 
     if (subscriberId === channelId) {
@@ -15,17 +15,48 @@ exports.toggleSubscribe = async (req, res) => {
       }
     });
 
+    let isSubscribed = false;
     if (existingSub) {
       await prisma.subscription.delete({
         where: { id: existingSub.id }
       });
-      return res.json({ subscribed: false, message: "Unsubscribed successfully" });
+      isSubscribed = false;
     } else {
       await prisma.subscription.create({
         data: { subscriberId, channelId }
       });
-      return res.json({ subscribed: true, message: "Subscribed successfully" });
+      isSubscribed = true;
+
+      try {
+        const notification = await prisma.notification.create({
+          data: {
+            userId: channelId,     // Channel owner
+            senderId: subscriberId, // Subscriber
+            type: 'SUBSCRIBE',
+            message: 'started subscribing to your channel.'
+          },
+          include: {
+            sender: {
+              select: { id: true, channelName: true, avatarUrl: true }
+            }
+          }
+        });
+
+        // Socket.io emit to channel owner room
+        const io = req.app.get('io');
+        if (io) {
+          io.to(channelId).emit('newNotification', notification);
+        }
+      } catch (notifErr) {
+        console.error("Failed to create subscribe notification:", notifErr);
+      }
     }
+
+    const subscriberCount = await prisma.subscription.count({
+      where: { channelId }
+    });
+
+    return res.json({ subscribed: isSubscribed, isSubscribed, subscriberCount, message: isSubscribed ? "Subscribed successfully" : "Unsubscribed successfully" });
   } catch (err) {
     console.error("Subscribe error:", err);
     res.status(500).json({ error: "Server error" });
@@ -33,10 +64,10 @@ exports.toggleSubscribe = async (req, res) => {
 };
 
 // Get Subscriber Count & Status
-exports.getSubscriptionsData = async (req, res) => {
+export const getSubscriptionsData = async (req, res) => {
   try {
     const { channelId } = req.params;
-    const currentUserId = req.user?.id;
+    const currentUserId = req.user?.id || req.userId;
 
     const subscriberCount = await prisma.subscription.count({
       where: { channelId }
