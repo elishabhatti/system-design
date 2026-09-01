@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon, Check } from 'lucide-react';
 import { io } from 'socket.io-client';
-
+import { fetchNotificationsApi, markNotificationsReadApi } from '../services/api';
 export default function Navbar() {
   const { user, logoutUser } = useAuth();
   const navigate = useNavigate();
@@ -20,11 +20,8 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) return;
 
-    // 1. Fetch old notifications from API
-    fetch('/api/notifications', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    })
-      .then(res => res.json())
+    // 1. Fetch old notifications from API using centralized helper
+    fetchNotificationsApi()
       .then(data => {
         if (Array.isArray(data)) {
           setNotifications(data);
@@ -33,8 +30,8 @@ export default function Navbar() {
       })
       .catch(err => console.error("Failed to load notifications", err));
 
-    // 2. Connect Socket.io (Backend URL ke mutabiq)
-    const socket = io(window.location.origin); // ya apka backend server URL
+    // 2. Connect Socket.io
+    const socket = io(window.location.origin);
     
     // Room join karein user ki ID se
     socket.emit('joinRoom', user.id || user._id);
@@ -51,10 +48,7 @@ export default function Navbar() {
 
   const markAsRead = async () => {
     try {
-      await fetch('/api/notifications/read', {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await markNotificationsReadApi();
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     } catch (err) {
