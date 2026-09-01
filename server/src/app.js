@@ -2,6 +2,7 @@ import express from "express";
 import videoRoutes from "./routes/video.routes.js";
 import authRoutes from "./routes/user.routes.js";
 import commentRoutes from "./routes/comments.routes.js";
+import noficationRoutes from "./routes/notification.routes.js";
 import cors from "cors";
 import path from "path";
 import cookieParser from "cookie-parser";
@@ -52,6 +53,7 @@ app.use(express.urlencoded({ limit: "500mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/comments", commentRoutes);
+app.use("/api/notifications", noficationRoutes);
 app.use("/api/videos", videoRoutes);
 
 export { app, server };

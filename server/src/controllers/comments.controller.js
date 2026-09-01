@@ -30,28 +30,64 @@ export const addComment = async (req, res) => {
     const { videoId } = req.params;
     const commentText =
       req.body.content || req.body.comment || Object.values(req.body)[0];
-    const userId = req.userId;
+    const userId = req.userId || req.user?.id;
 
     if (!commentText || !String(commentText).trim()) {
       return res.status(400).json({ error: "Comment content cannot be empty" });
     }
 
-    const comment = await prisma.comment.create({
-      data: {
-        content: String(commentText).trim(),
-        videoId,
-        userId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            channelName: true,
-            avatarUrl: true,
+    const trimmedContent = String(commentText).trim();
+
+    // Use transaction to create comment and trigger notification safely
+    const { comment, notif } = await prisma.$transaction(async (tx) => {
+      const newComment = await tx.comment.create({
+        data: {
+          content: trimmedContent,
+          videoId,
+          userId,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              channelName: true,
+              avatarUrl: true,
+            },
           },
         },
-      },
+      });
+
+      // Find video owner to send notification
+      const video = await tx.video.findUnique({
+        where: { id: videoId },
+        select: { userId: true }
+      });
+
+      let createdNotif = null;
+      if (video && video.userId !== userId) {
+        createdNotif = await tx.notification.create({
+          data: {
+            userId: video.userId,
+            senderId: userId,
+            type: 'COMMENT',
+            message: `commented on your video: "${trimmedContent.substring(0, 25)}${trimmedContent.length > 25 ? '...' : ''}"`
+          },
+          include: {
+            sender: { select: { id: true, channelName: true, avatarUrl: true } }
+          }
+        });
+      }
+
+      return { comment: newComment, notif: createdNotif };
     });
+
+    // Emit notification via Socket.io outside the transaction block
+    if (notif) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(notif.userId).emit('newNotification', notif);
+      }
+    }
 
     res.status(201).json({ message: "Comment added successfully", comment });
   } catch (error) {

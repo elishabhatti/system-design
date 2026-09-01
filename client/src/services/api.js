@@ -53,6 +53,17 @@ export const uploadVideo = async (formData, onUploadProgress) => {
   return response.data;
 };
 
+// --- Notification APIs 
+export const fetchNotificationsApi = async () => {
+  const response = await API.get('/notifications');
+  return response.data;
+};
+
+export const markNotificationsReadApi = async () => {
+  const response = await API.put('/notifications/read');
+  return response.data;
+};
+
 export const fetchVideos = async () => {
   const response = await API.get('/videos');
   return response.data;

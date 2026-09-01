@@ -26,11 +26,31 @@ export const toggleSubscribe = async (req, res) => {
         await tx.subscription.create({
           data: { subscriberId, channelId }
         });
+
+        // Create Notification in DB for new subscription
+        const notif = await tx.notification.create({
+          data: {
+            userId: channelId, // Channel owner
+            senderId: subscriberId,
+            type: 'SUBSCRIBE',
+            message: 'subscribed to your channel.'
+          },
+          include: {
+            sender: { select: { id: true, channelName: true, avatarUrl: true } }
+          }
+        });
+
+        // Emit via Socket.io if available
+        const io = req.app.get('io');
+        if (io) {
+          io.to(channelId).emit('newNotification', notif);
+        }
+
         return { subscribed: true };
       }
     });
 
-    // Fetch the updated subscriber count safely outside or inside
+    // Fetch the updated subscriber count safely outside
     const subscriberCount = await prisma.subscription.count({
       where: { channelId }
     });
@@ -46,7 +66,6 @@ export const toggleSubscribe = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 // Get Subscriber Count & Status
 export const getSubscriptionsData = async (req, res) => {
   try {
