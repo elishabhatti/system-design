@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon } from 'lucide-react';
+import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon, Check } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 export default function Navbar() {
   const { user, logoutUser } = useAuth();
@@ -9,6 +10,57 @@ export default function Navbar() {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  
+  // Notification States
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch initial notifications & setup Socket.io
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. Fetch old notifications from API
+    fetch('/api/notifications', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setNotifications(data);
+          setUnreadCount(data.filter(n => !n.read).length);
+        }
+      })
+      .catch(err => console.error("Failed to load notifications", err));
+
+    // 2. Connect Socket.io (Backend URL ke mutabiq)
+    const socket = io(window.location.origin); // ya apka backend server URL
+    
+    // Room join karein user ki ID se
+    socket.emit('joinRoom', user.id || user._id);
+
+    socket.on('newNotification', (notif) => {
+      setNotifications(prev => [notif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
+  const markAsRead = async () => {
+    try {
+      await fetch('/api/notifications/read', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err) {
+      console.error("Failed to mark notifications as read", err);
+    }
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -26,7 +78,6 @@ export default function Navbar() {
         {/* Brand Logo */}
         <Link to="/" className="flex items-center gap-3 group cursor-pointer">
           <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center relative overflow-hidden group-hover:border-zinc-600 transition duration-300 shadow-xl">
-            {/* Inner glowing ring effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-50"></div>
             <OrbitIcon className="w-5 h-5 text-white group-hover:rotate-180 transition duration-700 ease-in-out" />
             <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-white rounded-full animate-pulse shadow-sm shadow-white"></div>
@@ -93,11 +144,59 @@ export default function Navbar() {
                 <span>Upload</span>
               </Link>
 
-              {/* Notification Bell */}
-              <button className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition relative cursor-pointer">
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse"></span>
-              </button>
+              {/* Notification Bell Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    if (!showNotifications && unreadCount > 0) markAsRead();
+                  }}
+                  className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition relative cursor-pointer"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 top-12 w-80 bg-zinc-950 border border-zinc-800 rounded-2xl py-2 shadow-2xl z-50 backdrop-blur-2xl">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-900 mb-1">
+                      <p className="text-xs font-bold text-white">Notifications</p>
+                      <span className="text-[10px] font-mono text-zinc-500">{unreadCount} unread</span>
+                    </div>
+
+                    <div className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
+                      {notifications.length === 0 ? (
+                        <p className="text-xs text-zinc-600 text-center py-6 font-mono">No notifications yet</p>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div 
+                            key={notif.id} 
+                            className={`flex items-start gap-3 px-4 py-2.5 border-b border-zinc-900/50 hover:bg-zinc-900/40 transition ${!notif.read ? 'bg-zinc-900/20' : ''}`}
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden text-zinc-300">
+                              {notif.sender?.avatarUrl ? (
+                                <img src={notif.sender.avatarUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                (notif.sender?.channelName || "U")[0].toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex flex-col text-xs">
+                              <p className="text-zinc-300">
+                                <span className="font-bold text-white">{notif.sender?.channelName || "Someone"}</span> {notif.message}
+                              </p>
+                              <span className="text-[10px] text-zinc-600 font-mono mt-0.5">
+                                {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* User Avatar Menu Dropdown */}
               <div className="relative">
