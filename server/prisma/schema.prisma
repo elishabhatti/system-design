@@ -25,6 +25,8 @@ model User {
 
   subscribers   Subscription[] @relation("UserSubscriptions")
   subscriptions Subscription[] @relation("UserFollowing")
+  notifications       Notification[] @relation("UserNotifications")
+  sentNotifications   Notification[] @relation("NotificationSender")
 }
 
 model Subscription {
@@ -65,6 +67,19 @@ model Comment {
   video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([videoId]) // Video ki comments list fetch karne ke liye fast index
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   // Jisko notification jaani hai (Channel owner)
+  senderId  String   // Jisne action kiya (Subscriber ya Commenter)
+  type      String   // 'SUBSCRIBE' ya 'COMMENT'
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  sender User @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
 }
 
 model Video {
