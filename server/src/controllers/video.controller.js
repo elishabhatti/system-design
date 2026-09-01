@@ -46,7 +46,7 @@ export const uploadVideo = async (req, res) => {
             subscribers: true,
           }
         },
-        likes: true // Likes include karwaya yahan
+        likes: true
       }
     });
     

@@ -24,7 +24,7 @@ export const getCommentsByVideo = async (req, res) => {
   }
 };
 
-// Add Comment with Notification
+// Add Comment
 export const addComment = async (req, res) => {
   try {
     const { videoId } = req.params;
@@ -52,38 +52,6 @@ export const addComment = async (req, res) => {
         },
       },
     });
-
-    // 🔔 Trigger Notification for Comment
-    try {
-      const video = await prisma.video.findUnique({
-        where: { id: videoId },
-        select: { userId: true }
-      });
-
-      // Agar video owner khud comment nahi kar raha toh notification bhejo
-      if (video && video.userId !== userId) {
-        const notification = await prisma.notification.create({
-          data: {
-            userId: video.userId,   // Video Owner
-            senderId: userId,       // Commenter
-            type: 'COMMENT',
-            message: 'commented on your video.'
-          },
-          include: {
-            sender: {
-              select: { id: true, channelName: true, avatarUrl: true }
-            }
-          }
-        });
-
-        const io = req.app.get('io');
-        if (io) {
-          io.to(video.userId).emit('newNotification', notification);
-        }
-      }
-    } catch (notifErr) {
-      console.error("Failed to create comment notification:", notifErr);
-    }
 
     res.status(201).json({ message: "Comment added successfully", comment });
   } catch (error) {
