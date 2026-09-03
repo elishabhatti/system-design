@@ -34,8 +34,9 @@ export default function Navbar() {
       .catch(err => console.error("Failed to load notifications", err));
 
     // 2. Connect Socket.io client safely
-    const socket = io(window.location.origin, {
-      transports: ['websocket', 'polling']
+    const socket = io('http://localhost', {
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
     });
     
     // Join specific room using user ID so backend can target it directly
