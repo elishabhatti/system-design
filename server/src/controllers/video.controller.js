@@ -18,38 +18,88 @@ export const uploadVideo = async (req, res) => {
     } = req.body;
     
     const file = req.file;
-    const userId = req.userId;  
+    const userId = req.userId || req.user?.id;  
 
     if (!file) {
       return res.status(400).json({ error: "Video file is required." });
     }
 
-    const newVideo = await prisma.video.create({
-      data: {
-        title: title || file.originalname,
-        description: description || "",
-        filename: file.filename,
-        filepath: file.path, 
-        filesize: file.size,
-        mimetype: file.mimetype,
-        category: category || "General",
-        tags: tags || "",
-        isMadeForKids: isMadeForKids === 'true' || isMadeForKids === true,
-        ageRestricted: ageRestricted === 'true' || ageRestricted === true,
-        visibility: visibility || "private",
-        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-        userId: userId,
-      },
-      include: {
-        user: {
-          include: {
-            subscribers: true,
-          }
+    // Use a transaction to create the video and notifications atomically
+    const { newVideo, notifications } = await prisma.$transaction(async (tx) => {
+      const video = await tx.video.create({
+        data: {
+          title: title || file.originalname,
+          description: description || "",
+          filename: file.filename,
+          filepath: file.path, 
+          filesize: file.size,
+          mimetype: file.mimetype,
+          category: category || "General",
+          tags: tags || "",
+          isMadeForKids: isMadeForKids === 'true' || isMadeForKids === true,
+          ageRestricted: ageRestricted === 'true' || ageRestricted === true,
+          visibility: visibility || "private",
+          scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+          userId: userId,
         },
-        likes: true
+        include: {
+          user: {
+            select: {
+              id: true,
+              channelName: true,
+              avatarUrl: true,
+              subscribers: true,
+            }
+          },
+          likes: true
+        }
+      });
+
+      // Find all subscribers of this user/channel
+      const subscribers = await tx.subscription.findMany({
+        where: { channelId: userId }
+      });
+
+      let createdNotifications = [];
+
+      // Create notifications for all subscribers if visibility is public
+      if (visibility === 'public' && subscribers.length > 0) {
+        const notifData = subscribers.map(sub => ({
+          userId: sub.subscriberId, // Recipient
+          senderId: userId,         // Channel Owner
+          type: 'NEW_VIDEO',
+          message: `uploaded a new video: "${video.title.substring(0, 25)}${video.title.length > 25 ? '...' : ''}"`,
+        }));
+
+        await tx.notification.createMany({
+          data: notifData,
+        });
+
+        // Fetch created notifications with sender details to emit real-time
+        createdNotifications = await tx.notification.findMany({
+          where: {
+            senderId: userId,
+            type: 'NEW_VIDEO',
+          },
+          include: {
+            sender: { select: { id: true, channelName: true, avatarUrl: true } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: subscribers.length
+        });
       }
+
+      return { newVideo: video, notifications: createdNotifications };
     });
     
+    // Emit real-time notifications via Socket.io outside the transaction block
+    const io = req.app.get("io");
+    if (io && notifications.length > 0) {
+      notifications.forEach(notif => {
+        io.to(notif.userId).emit('newNotification', notif);
+      });
+    }
+
     await redis.del("videos:all");
 
     return res.status(201).json(newVideo);
