@@ -34,7 +34,7 @@ export default function Navbar() {
       .catch(err => console.error("Failed to load notifications", err));
 
     // 2. Connect Socket.io client safely
-    const socket = io('http://localhost', {
+    const socket = io({
       transports: ['websocket', 'polling'],
       withCredentials: true,
     });
