@@ -39,13 +39,9 @@ export default function Navbar() {
       withCredentials: true,
     });
     
-    // Join specific room using user ID so backend can target it directly
     socket.emit('joinRoom', currentUserId);
-
-    // Real-time listener for incoming notifications (Upload, Subscribe, Comments)
     socket.on('newNotification', (notif) => {
       setNotifications(prev => {
-        // Prevent duplicate entries if event fires twice
         if (prev.some(n => n.id === notif.id)) return prev;
         return [notif, ...prev];
       });
