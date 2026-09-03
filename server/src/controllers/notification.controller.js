@@ -1,12 +1,9 @@
 import prisma from '../config/db.js';
 
+// Get all notifications for logged-in user
 export const getNotifications = async (req, res) => {
   try {
     const userId = req.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized user ID missing." });
-    }
 
     const notifications = await prisma.notification.findMany({
       where: { userId },
@@ -34,10 +31,6 @@ export const getNotifications = async (req, res) => {
 export const markAsRead = async (req, res) => {
   try {
     const userId = req.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized user ID missing." });
-    }
 
     await prisma.notification.updateMany({
       where: { userId, read: false },
