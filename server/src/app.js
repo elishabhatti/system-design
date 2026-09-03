@@ -30,20 +30,19 @@ io.adapter(createAdapter(pubClient, subClient));
 app.set("io", io); 
 
 io.on("connection", (socket) => {
-  // console.log(`A user connected on instance [Port: ${process.env.PORT || 3001}]:`, socket.id);
+  socket.on("joinRoom", (userId) => {
+    socket.join(userId);
+  });
 
   socket.on("join_video_room", (videoId) => {
     socket.join(`video_${videoId}`);
-    // console.log(`User joined room: video_${videoId}`);
   });
 
   socket.on("leave_video_room", (videoId) => {
     socket.leave(`video_${videoId}`);
   });
 
-  socket.on("disconnect", () => {
-    // console.log("User disconnected:", socket.id);
-  });
+  socket.on("disconnect", () => {});
 });
 
 app.use(cookieParser());
