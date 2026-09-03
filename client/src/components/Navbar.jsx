@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon, Check } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { fetchNotificationsApi, markNotificationsReadApi } from '../services/api';
+
 export default function Navbar() {
   const { user, logoutUser } = useAuth();
   const navigate = useNavigate();
@@ -16,11 +17,13 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch initial notifications & setup Socket.io
+  // Fetch initial notifications & setup Socket.io for Real-Time Sync
   useEffect(() => {
     if (!user) return;
 
-    // 1. Fetch old notifications from API using centralized helper
+    const currentUserId = user.id || user._id;
+
+    // 1. Fetch old notifications from API
     fetchNotificationsApi()
       .then(data => {
         if (Array.isArray(data)) {
@@ -30,18 +33,26 @@ export default function Navbar() {
       })
       .catch(err => console.error("Failed to load notifications", err));
 
-    // 2. Connect Socket.io
-    const socket = io(window.location.origin);
+    // 2. Connect Socket.io client safely
+    const socket = io(window.location.origin, {
+      transports: ['websocket', 'polling']
+    });
     
-    // Room join karein user ki ID se
-    socket.emit('joinRoom', user.id || user._id);
+    // Join specific room using user ID so backend can target it directly
+    socket.emit('joinRoom', currentUserId);
 
+    // Real-time listener for incoming notifications (Upload, Subscribe, Comments)
     socket.on('newNotification', (notif) => {
-      setNotifications(prev => [notif, ...prev]);
+      setNotifications(prev => {
+        // Prevent duplicate entries if event fires twice
+        if (prev.some(n => n.id === notif.id)) return prev;
+        return [notif, ...prev];
+      });
       setUnreadCount(prev => prev + 1);
     });
 
     return () => {
+      socket.off('newNotification');
       socket.disconnect();
     };
   }, [user]);
