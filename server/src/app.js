@@ -10,16 +10,21 @@ import http from "http";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
+import helmet from "helmet";
 
 const app = express();
 const server = http.createServer(app);
 
-const pubClient = new Redis({ host: "localhost", port: 6379 });
+// 1. Environment variables ke sath Redis pub/sub clients
+const redisHost = process.env.REDIS_HOST
+const redisPort = process.env.REDIS_PORT
+
+const pubClient = new Redis({ host: redisHost, port: redisPort });
 const subClient = pubClient.duplicate();
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -46,6 +51,10 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {});
 });
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 
 app.use(cookieParser());
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
