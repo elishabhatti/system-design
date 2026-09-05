@@ -272,6 +272,10 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
       <video
         ref={videoRef}
         poster={poster}
+        autoPlay
+        muted={muted}
+        volume={volume}
+        playbackRate={speed}
         playsInline
         className="w-full h-full object-contain"
         onClick={togglePlay}
