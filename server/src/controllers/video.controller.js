@@ -42,8 +42,10 @@ export const uploadVideo = async (req, res) => {
       },
       include: {
         user: {
-          include: {
-            subscribers: true,
+          select: {
+            id: true,
+            channelName: true,
+            avatarUrl: true,
           }
         },
         likes: true
@@ -51,6 +53,33 @@ export const uploadVideo = async (req, res) => {
     });
     
     await redis.del("videos:all");
+
+    // --- UPLOAD NOTIFICATION LOGIC ---
+    // 1. Creator ke sabhi subscribers ko fetch karein
+    const subscriptions = await prisma.subscription.findMany({
+      where: { channelId: userId },
+    });
+
+    const io = req.app.get("io");
+
+    // 2. Har subscriber ke liye notification create karein aur emit karein
+    for (const sub of subscriptions) {
+      const notification = await prisma.notification.create({
+        data: {
+          userId: sub.subscriberId, // Subscriber jisko notification jayegi
+          senderId: userId,         // Creator jisne video upload ki
+          type: 'UPLOAD',
+          message: `uploaded a new video: "${newVideo.title}"`,
+        },
+        include: {
+          sender: { select: { id: true, channelName: true, avatarUrl: true } }
+        }
+      });
+
+      if (io) {
+        io.to(sub.subscriberId).emit('newNotification', notification);
+      }
+    }
 
     return res.status(201).json(newVideo);
   } catch (error) {
@@ -185,6 +214,16 @@ export const toggleVideoLike = async (req, res) => {
   try {
     const { videoId } = req.params;
     const userId = req.userId;
+
+    const video = await prisma.video.findUnique({
+      where: { id: videoId },
+      select: { id: true, title: true, userId: true }
+    });
+
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
     const existingLike = await prisma.like.findUnique({
       where: {
         userId_videoId: { userId, videoId }
@@ -203,6 +242,27 @@ export const toggleVideoLike = async (req, res) => {
         data: { userId, videoId }
       });
       isLiked = true;
+
+      // --- LIKE NOTIFICATION LOGIC ---
+      // Agar user khud ki video like nahi kar raha tab notification bhejein
+      if (video.userId !== userId) {
+        const notification = await prisma.notification.create({
+          data: {
+            userId: video.userId, // Video ka malik
+            senderId: userId,     // Jisne like kiya
+            type: 'LIKE',
+            message: `liked your video: "${video.title}"`,
+          },
+          include: {
+            sender: { select: { id: true, channelName: true, avatarUrl: true } }
+          }
+        });
+
+        const io = req.app.get("io");
+        if (io) {
+          io.to(video.userId).emit('newNotification', notification);
+        }
+      }
     }
 
     const likeCount = await prisma.like.count({
