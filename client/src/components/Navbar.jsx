@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon, Check } from 'lucide-react';
+import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon, Check, Heart, UserPlus } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { fetchNotificationsApi, markNotificationsReadApi } from '../services/api';
 
@@ -16,6 +16,24 @@ export default function Navbar() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Refs for Click Outside Detection
+  const notificationRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch initial notifications & setup Socket.io for Real-Time Sync
   useEffect(() => {
@@ -72,6 +90,20 @@ export default function Navbar() {
   };
 
   const isActive = (path) => location.pathname === path;
+
+  // Helper to render icon based on notification type
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'LIKE':
+        return <Heart className="w-3 h-3 text-red-500 fill-red-500" />;
+      case 'SUBSCRIBE':
+        return <UserPlus className="w-3 h-3 text-blue-400" />;
+      case 'UPLOAD':
+        return <Video className="w-3 h-3 text-emerald-400" />;
+      default:
+        return <Bell className="w-3 h-3 text-zinc-400" />;
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 px-4 py-3 bg-black/90 backdrop-blur-xl border-b border-zinc-900 transition-all">
@@ -147,11 +179,12 @@ export default function Navbar() {
               </Link>
 
               {/* Notification Bell Dropdown */}
-              <div className="relative">
+              <div className="relative" ref={notificationRef}>
                 <button
                   onClick={() => {
-                    setShowNotifications(!showNotifications);
-                    if (!showNotifications && unreadCount > 0) markAsRead();
+                    const nextState = !showNotifications;
+                    setShowNotifications(nextState);
+                    if (nextState && unreadCount > 0) markAsRead();
                   }}
                   className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition relative cursor-pointer"
                 >
@@ -162,36 +195,59 @@ export default function Navbar() {
                 </button>
 
                 {showNotifications && (
-                  <div className="absolute right-0 top-12 w-80 bg-zinc-950 border border-zinc-800 rounded-2xl py-2 shadow-2xl z-50 backdrop-blur-2xl">
+                  <div className="absolute right-0 top-12 w-80 sm:w-88 bg-zinc-950 border border-zinc-800 rounded-2xl py-2 shadow-2xl z-50 backdrop-blur-2xl">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-900 mb-1">
-                      <p className="text-xs font-bold text-white">Notifications</p>
-                      <span className="text-[10px] font-mono text-zinc-500">{unreadCount} unread</span>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-white">Notifications</p>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400">
+                          {unreadCount} unread
+                        </span>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button 
+                          onClick={markAsRead}
+                          className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                        >
+                          Mark all read
+                        </button>
+                      )}
                     </div>
 
                     <div className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
                       {notifications.length === 0 ? (
-                        <p className="text-xs text-zinc-600 text-center py-6 font-mono">No notifications yet</p>
+                        <p className="text-xs text-zinc-600 text-center py-8 font-mono">No notifications yet</p>
                       ) : (
                         notifications.map((notif) => (
                           <div 
                             key={notif.id} 
-                            className={`flex items-start gap-3 px-4 py-2.5 border-b border-zinc-900/50 hover:bg-zinc-900/40 transition ${!notif.read ? 'bg-zinc-900/20' : ''}`}
+                            className={`flex items-start gap-3 px-4 py-3 border-b border-zinc-900/50 hover:bg-zinc-900/40 transition relative ${!notif.read ? 'bg-zinc-900/30' : ''}`}
                           >
-                            <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden text-zinc-300">
-                              {notif.sender?.avatarUrl ? (
-                                <img src={notif.sender.avatarUrl} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                (notif.sender?.channelName || "U")[0].toUpperCase()
-                              )}
+                            {/* Avatar with Type Badge */}
+                            <div className="relative shrink-0">
+                              <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold overflow-hidden text-zinc-300">
+                                {notif.sender?.avatarUrl ? (
+                                  <img src={notif.sender.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  (notif.sender?.channelName || "U")[0].toUpperCase()
+                                )}
+                              </div>
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                                {getNotificationIcon(notif.type)}
+                              </div>
                             </div>
-                            <div className="flex flex-col text-xs">
-                              <p className="text-zinc-300">
+
+                            <div className="flex flex-col text-xs flex-1">
+                              <p className="text-zinc-300 leading-relaxed">
                                 <span className="font-bold text-white">{notif.sender?.channelName || "Someone"}</span> {notif.message}
                               </p>
-                              <span className="text-[10px] text-zinc-600 font-mono mt-0.5">
+                              <span className="text-[10px] text-zinc-500 font-mono mt-1">
                                 {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
+
+                            {!notif.read && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-white self-center shrink-0"></div>
+                            )}
                           </div>
                         ))
                       )}
@@ -201,7 +257,7 @@ export default function Navbar() {
               </div>
 
               {/* User Avatar Menu Dropdown */}
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
                   className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden flex items-center justify-center font-bold text-xs text-white hover:border-zinc-600 transition cursor-pointer shadow-md"
