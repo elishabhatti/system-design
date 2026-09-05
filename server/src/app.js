@@ -31,7 +31,9 @@ app.set("io", io);
 
 io.on("connection", (socket) => {
   socket.on("joinRoom", (userId) => {
-    socket.join(userId);
+    if (userId) {
+      socket.join(userId);
+    }
   });
 
   socket.on("join_video_room", (videoId) => {
@@ -50,6 +52,7 @@ app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json({ limit: "500mb" }));
 app.use(express.urlencoded({ limit: "500mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/notifications", noficationRoutes);
