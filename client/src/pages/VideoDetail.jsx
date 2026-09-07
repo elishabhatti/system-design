@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   fetchVideos,
@@ -26,7 +26,9 @@ import {
   X,
   Copy,
   Code,
-  Mail
+  Mail,
+  ArrowDownUp,
+  SkipForward,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
@@ -35,9 +37,10 @@ const SOCKET_URL = "http://localhost:3000";
 const socket = io(SOCKET_URL);
 
 // Max number of times we'll retry incrementing the view count for a single
-// video before giving up. Prevents the "retry storm" bug where a failing
-// backend call gets re-fired on every timeupdate tick (every ~250ms).
+// video before giving up. Prevents a "retry storm" where a failing backend
+// call gets re-fired on every timeupdate tick (every ~250ms).
 const MAX_VIEW_INCREMENT_ATTEMPTS = 3;
+const AUTOPLAY_COUNTDOWN_SECONDS = 5;
 
 export default function VideoDetail() {
   const { id } = useParams();
@@ -51,10 +54,12 @@ export default function VideoDetail() {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [likeBursts, setLikeBursts] = useState([]); // ✨ floating "+1" animations
 
   // Share Modal states
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareAtTimestamp, setShareAtTimestamp] = useState(false);
 
   // User & Subscription states
   const [currentUser, setCurrentUser] = useState(null);
@@ -65,6 +70,7 @@ export default function VideoDetail() {
   // Comments states
   const [comments, setComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState("");
+  const [commentSort, setCommentSort] = useState("newest"); // ✨ 'newest' | 'top'
 
   // Comment Editing states
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -73,12 +79,17 @@ export default function VideoDetail() {
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Tracks videos whose "view" has already been counted this session so we
-  // never double count. A video's id lands here permanently once counted
-  // OR once it has exhausted its retry attempts on failure.
+  // ✨ Theater mode + autoplay-next state
+  const [theaterMode, setTheaterMode] = useState(false);
+  const [autoplayCountdown, setAutoplayCountdown] = useState(null);
+  const countdownIntervalRef = useRef(null);
+
+  // ✨ Animated view counter
+  const [displayedViews, setDisplayedViews] = useState(0);
+  const viewAnimFrameRef = useRef(null);
+  const currentTimeRef = useRef(0); // last known playback position, for "share at timestamp"
+
   const countedSessionRef = useRef(new Set());
-  // Tracks how many times we've *attempted* the increment call per video,
-  // so a persistently-failing backend can't trigger an infinite retry loop.
   const viewAttemptCountRef = useRef({});
 
   useEffect(() => {
@@ -93,6 +104,8 @@ export default function VideoDetail() {
         if (found) {
           setCurrentVideo(found);
           loadVideoComments(found.id);
+          setAutoplayCountdown(null);
+          clearInterval(countdownIntervalRef.current);
         }
       } else {
         navigate(`/watch/${videos[0].id}`, { replace: true });
@@ -179,6 +192,31 @@ export default function VideoDetail() {
     }
   };
 
+  // ✨ Animated view counter — eases the displayed number toward the real
+  // value over ~600ms instead of jumping, whenever `views` changes.
+  useEffect(() => {
+    const target = currentVideo?.views ?? 0;
+    const start = displayedViews;
+    if (start === target) return;
+
+    const duration = 600;
+    const startTime = performance.now();
+
+    const step = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const value = Math.round(start + (target - start) * eased);
+      setDisplayedViews(value);
+      if (progress < 1) {
+        viewAnimFrameRef.current = requestAnimationFrame(step);
+      }
+    };
+
+    viewAnimFrameRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(viewAnimFrameRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentVideo?.views]);
+
   const handleSubscribeToggle = async () => {
     if (!currentVideo?.userId) return;
 
@@ -203,7 +241,7 @@ export default function VideoDetail() {
     }
   };
 
-  const handleLikeToggle = async () => {
+  const handleLikeToggle = async (e) => {
     if (!currentVideo?.id || likeLoading) return;
 
     setLikeLoading(true);
@@ -213,6 +251,15 @@ export default function VideoDetail() {
     const newLikedState = !liked;
     setLiked(newLikedState);
     setLikeCount(prev => (newLikedState ? prev + 1 : Math.max(0, prev - 1)));
+
+    // ✨ Fire a little floating "+1" burst from the button on like (not unlike)
+    if (newLikedState && e?.currentTarget) {
+      const burstId = Date.now();
+      setLikeBursts((prev) => [...prev, { id: burstId }]);
+      setTimeout(() => {
+        setLikeBursts((prev) => prev.filter((b) => b.id !== burstId));
+      }, 700);
+    }
 
     try {
       const res = await toggleVideoLikeApi(currentVideo.id);
@@ -264,15 +311,11 @@ export default function VideoDetail() {
     }
   };
 
-  // 🔧 FIXED: this used to reset the "counted" lock on every failed request,
-  // which meant a persistently-failing backend call (e.g. a 500) got
-  // re-fired on every single `timeupdate` tick (every ~250ms) for as long
-  // as the video stayed past the 20% mark — a retry storm.
-  //
-  // Now: we attempt the increment at most MAX_VIEW_INCREMENT_ATTEMPTS times
-  // per video, then give up silently. No more infinite retries.
+  // View-increment: attempts at most MAX_VIEW_INCREMENT_ATTEMPTS times per
+  // video, then gives up — never re-fires on every timeupdate tick forever.
   const handleTimeUpdate = (e) => {
     const video = e.target;
+    currentTimeRef.current = video.currentTime || 0;
     if (!video.duration || !currentVideo?.id) return;
 
     const videoId = currentVideo.id;
@@ -283,14 +326,10 @@ export default function VideoDetail() {
 
     const attempts = viewAttemptCountRef.current[videoId] || 0;
     if (attempts >= MAX_VIEW_INCREMENT_ATTEMPTS) {
-      // Give up for good — stop counting this video as "in progress" so we
-      // don't keep hammering a broken endpoint.
       countedSessionRef.current.add(videoId);
       return;
     }
 
-    // Lock immediately so no other timeupdate tick can race in before the
-    // request resolves. We do NOT unlock this on failure — see comment above.
     countedSessionRef.current.add(videoId);
     viewAttemptCountRef.current[videoId] = attempts + 1;
 
@@ -305,15 +344,59 @@ export default function VideoDetail() {
       .catch((err) => {
         console.error(`Failed to increment view (attempt ${attempts + 1}/${MAX_VIEW_INCREMENT_ATTEMPTS})`, err);
         if (attempts + 1 < MAX_VIEW_INCREMENT_ATTEMPTS) {
-          // Allow exactly one more retry on a future tick.
           countedSessionRef.current.delete(videoId);
         }
-        // else: stays locked, we've hit the cap, stop trying.
       });
   };
 
+  const sidebarVideos = useMemo(
+    () => videos.filter((v) => currentVideo && String(v.id) !== String(currentVideo.id)),
+    [videos, currentVideo]
+  );
+
+  // ✨ Autoplay next — when the video ends, count down before advancing so
+  // the user can cancel (mirrors the familiar "up next" pattern).
+  const handleVideoEnded = () => {
+    if (sidebarVideos.length === 0) return;
+    setAutoplayCountdown(AUTOPLAY_COUNTDOWN_SECONDS);
+    clearInterval(countdownIntervalRef.current);
+    countdownIntervalRef.current = setInterval(() => {
+      setAutoplayCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current);
+          navigate(`/watch/${sidebarVideos[0].id}`);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const cancelAutoplay = () => {
+    clearInterval(countdownIntervalRef.current);
+    setAutoplayCountdown(null);
+  };
+
+  useEffect(() => () => clearInterval(countdownIntervalRef.current), []);
+
+  // ✨ Sorted comments — client-side, no backend change needed. "Top" ranks
+  // by like count when the API provides one, falling back to original order.
+  const sortedComments = useMemo(() => {
+    const arr = [...comments];
+    if (commentSort === "top") {
+      arr.sort((a, b) => (b.likeCount || b._count?.likes || 0) - (a.likeCount || a._count?.likes || 0));
+    } else {
+      arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+    return arr;
+  }, [comments, commentSort]);
+
   // Share helpers
-  const currentVideoUrl = window.location.href;
+  const baseVideoUrl = window.location.href.split("?")[0].split("#")[0];
+  const currentVideoUrl = shareAtTimestamp
+    ? `${baseVideoUrl}?t=${Math.floor(currentTimeRef.current)}`
+    : baseVideoUrl;
   const shareTitle = currentVideo?.title || "Check out this video";
 
   const copyToClipboard = () => {
@@ -348,23 +431,63 @@ export default function VideoDetail() {
     );
   }
 
-  const sidebarVideos = videos.filter((v) => String(v.id) !== String(currentVideo.id));
+  const nextVideo = sidebarVideos[0];
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 relative">
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+      <div
+        className={`max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 gap-6 relative transition-all duration-300 ${
+          theaterMode ? "lg:grid-cols-1 max-w-full" : "lg:grid-cols-12"
+        }`}
+      >
 
         {/* Left: Player Card, Info & Comments */}
-        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
-          <div className="border border-zinc-900 rounded-2xl shadow-2xl overflow-hidden bg-zinc-950">
+        <div className={`flex flex-col gap-4 ${theaterMode ? "" : "lg:col-span-8 xl:col-span-9"}`}>
+          <div className="border border-zinc-900 rounded-2xl shadow-2xl overflow-hidden bg-zinc-950 relative">
             <div className="relative aspect-video bg-black flex items-center justify-center">
               <VideoPlayer
                 key={currentVideo.id}
                 src={currentVideo.filepath}
+                videoId={currentVideo.id}
                 isLive={currentVideo.isLive}
                 handleTimeUpdate={handleTimeUpdate}
+                onEnded={handleVideoEnded}
+                theaterMode={theaterMode}
+                onToggleTheater={() => setTheaterMode((t) => !t)}
               />
+
+              {/* ✨ Autoplay "Up Next" countdown overlay */}
+              {autoplayCountdown !== null && nextVideo && (
+                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-30 p-6">
+                  <div className="bg-[#121216] border border-white/15 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+                    <div className="flex items-center gap-2 text-zinc-400 text-[11px] font-mono mb-3">
+                      <SkipForward className="w-3.5 h-3.5" />
+                      Up next in {autoplayCountdown}s
+                    </div>
+                    <div className="flex gap-3 items-center mb-4">
+                      <div className="w-24 aspect-video bg-black rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                        <video src={nextVideo.filepath} className="w-full h-full object-cover" muted />
+                      </div>
+                      <h4 className="text-xs font-bold text-white leading-snug">{nextVideo.title}</h4>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/watch/${nextVideo.id}`)}
+                        className="flex-1 bg-white text-black font-bold text-xs py-2 rounded-lg cursor-pointer hover:bg-zinc-200 transition"
+                      >
+                        Play now
+                      </button>
+                      <button
+                        onClick={cancelAutoplay}
+                        className="flex-1 bg-white/10 text-zinc-300 font-semibold text-xs py-2 rounded-lg cursor-pointer hover:bg-white/20 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-5 flex flex-col gap-4">
@@ -384,7 +507,7 @@ export default function VideoDetail() {
                   </div>
                   <div>
                     <h3 className="font-bold text-xs text-zinc-200">
-                      {currentVideo.user?.channelName || "Elisha Jameel"}
+                      {currentVideo.user?.channelName || "Channel"}
                     </h3>
                     <span className="text-[10px] text-zinc-500 font-mono">
                       {subscriberCount} subscribers
@@ -409,7 +532,7 @@ export default function VideoDetail() {
                   <button
                     onClick={handleLikeToggle}
                     disabled={likeLoading}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                    className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                       liked
                         ? "bg-white border-white text-black font-bold shadow-lg"
                         : "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300"
@@ -417,9 +540,17 @@ export default function VideoDetail() {
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
                     <span>{likeCount}</span>
+                    {/* ✨ Floating "+1" burst */}
+                    {likeBursts.map((b) => (
+                      <span
+                        key={b.id}
+                        className="absolute -top-3 right-1 text-violet-400 text-[10px] font-bold pointer-events-none animate-[likeBurst_0.7s_ease-out_forwards]"
+                      >
+                        +1
+                      </span>
+                    ))}
                   </button>
 
-                  {/* Open Share Modal Button */}
                   <button
                     onClick={() => setIsShareModalOpen(true)}
                     className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300"
@@ -440,7 +571,7 @@ export default function VideoDetail() {
                 <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-400 mb-3 pb-3 border-b border-zinc-900">
                   <span className="flex items-center gap-1.5">
                     <Eye className="w-3.5 h-3.5 text-zinc-500" />
-                    {currentVideo.views ?? 0} views
+                    <span className="tabular-nums">{displayedViews.toLocaleString()}</span> views
                   </span>
                   <span className="flex items-center gap-1.5">
                     <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
@@ -448,7 +579,7 @@ export default function VideoDetail() {
                   </span>
                   <span className="flex items-center gap-1.5 font-mono text-[11px]">
                     <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                    {currentVideo.uploadedAt ? new Date(currentVideo.uploadedAt).toLocaleDateString() : "Aug 15, 2026"}
+                    {currentVideo.uploadedAt ? new Date(currentVideo.uploadedAt).toLocaleDateString() : "—"}
                   </span>
                 </div>
                 <p className="text-zinc-400 font-normal">
@@ -458,11 +589,20 @@ export default function VideoDetail() {
 
               {/* Comments Section UI */}
               <div className="mt-4 flex flex-col gap-4 border border-zinc-900 rounded-xl p-4 bg-zinc-950">
-                <div className="flex items-center gap-2 pb-3 border-b border-zinc-900">
-                  <MessageSquare className="w-4 h-4 text-zinc-400" />
-                  <h3 className="font-bold text-xs text-white">
-                    Comments <span className="text-zinc-500 font-mono font-normal">({comments.length})</span>
-                  </h3>
+                <div className="flex items-center justify-between pb-3 border-b border-zinc-900">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-zinc-400" />
+                    <h3 className="font-bold text-xs text-white">
+                      Comments <span className="text-zinc-500 font-mono font-normal">({comments.length})</span>
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setCommentSort((s) => (s === "newest" ? "top" : "newest"))}
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                  >
+                    <ArrowDownUp className="w-3 h-3" />
+                    {commentSort === "newest" ? "Newest" : "Top"}
+                  </button>
                 </div>
 
                 <form onSubmit={handleAddComment} className="flex gap-2 items-center">
@@ -484,10 +624,10 @@ export default function VideoDetail() {
 
                 {/* Comments List Layout */}
                 <div className="flex flex-col gap-3 mt-2">
-                  {comments.length === 0 ? (
+                  {sortedComments.length === 0 ? (
                     <p className="text-xs text-zinc-600 text-center py-4 font-mono">No comments yet. Be the first to comment!</p>
                   ) : (
-                    comments.map((comm) => {
+                    sortedComments.map((comm) => {
                       const currentUserId = currentUser?.id || currentUser?._id;
                       const commentUserId = comm.user?.id || comm.userId;
                       const isOwner = currentUserId && String(commentUserId) === String(currentUserId);
@@ -504,7 +644,6 @@ export default function VideoDetail() {
                           </div>
 
                           <div className="flex flex-col w-full">
-                            {/* Top Row: Channel Name + (Hover-based Edit/Delete + Date) */}
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
 
@@ -590,47 +729,49 @@ export default function VideoDetail() {
           </div>
         </div>
 
-        {/* Right: Up Next Queue Sidebar */}
-        <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
-          <div className="border border-zinc-900 rounded-2xl p-3.5 flex items-center justify-between shadow-lg bg-zinc-950">
-            <div>
-              <h3 className="font-bold text-xs text-white">Queue Stream Mix</h3>
-              <span className="text-[10px] text-zinc-500 font-mono">{videos.length} videos available</span>
+        {/* Right: Up Next Queue Sidebar — hidden in theater mode to give the player room */}
+        {!theaterMode && (
+          <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
+            <div className="border border-zinc-900 rounded-2xl p-3.5 flex items-center justify-between shadow-lg bg-zinc-950">
+              <div>
+                <h3 className="font-bold text-xs text-white">Queue Stream Mix</h3>
+                <span className="text-[10px] text-zinc-500 font-mono">{videos.length} videos available</span>
+              </div>
+              <Sparkles className="w-4 h-4 text-zinc-400" />
             </div>
-            <Sparkles className="w-4 h-4 text-zinc-400" />
-          </div>
 
-          <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
-            {sidebarVideos.map((vid, idx) => {
-              const isSelected = String(currentVideo.id) === String(vid.id);
-              return (
-                <div
-                  key={vid.id}
-                  onClick={() => navigate(`/watch/${vid.id}`)}
-                  className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
-                    isSelected ? "border-zinc-700 bg-zinc-900 shadow-md" : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900"
-                  }`}
-                >
-                  <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
-                    <video src={vid.filepath} className="w-full h-full object-cover" muted />
-                    <span className="absolute bottom-1 right-1 bg-black/90 text-[9px] px-1 rounded text-zinc-300 font-mono">
-                      {vid.duration || "5:31"}
-                    </span>
+            <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+              {sidebarVideos.map((vid, idx) => {
+                const isSelected = String(currentVideo.id) === String(vid.id);
+                return (
+                  <div
+                    key={vid.id}
+                    onClick={() => navigate(`/watch/${vid.id}`)}
+                    className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
+                      isSelected ? "border-zinc-700 bg-zinc-900 shadow-md" : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900"
+                    }`}
+                  >
+                    <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
+                      <video src={vid.filepath} className="w-full h-full object-cover" muted />
+                      <span className="absolute bottom-1 right-1 bg-black/90 text-[9px] px-1 rounded text-zinc-300 font-mono">
+                        {vid.duration || "—"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col overflow-hidden w-full">
+                      <span className="text-[10px] font-mono text-zinc-500 mb-0.5">#{idx + 1} in queue</span>
+                      <h4 className={`font-semibold text-xs truncate ${isSelected ? "text-white font-bold" : "text-zinc-300 group-hover:text-white"}`}>
+                        {vid.title}
+                      </h4>
+                      <span className="text-[10px] text-zinc-500 truncate mt-0.5">
+                        {vid.user?.channelName || "Channel"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col overflow-hidden w-full">
-                    <span className="text-[10px] font-mono text-zinc-500 mb-0.5">#{idx + 1} in queue</span>
-                    <h4 className={`font-semibold text-xs truncate ${isSelected ? "text-white font-bold" : "text-zinc-300 group-hover:text-white"}`}>
-                      {vid.title}
-                    </h4>
-                    <span className="text-[10px] text-zinc-500 truncate mt-0.5">
-                      {vid.user?.channelName || "Elisha Jameel"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* SHARE POPUP MODAL */}
@@ -638,7 +779,6 @@ export default function VideoDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
 
-            {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900">
               <h3 className="font-bold text-sm text-white">Share video</h3>
               <button
@@ -649,13 +789,10 @@ export default function VideoDetail() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 flex flex-col gap-6">
 
-              {/* Social Share Grid */}
               <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 text-center">
 
-                {/* WhatsApp */}
                 <a
                   href={shareLinks.whatsapp}
                   target="_blank"
@@ -668,7 +805,6 @@ export default function VideoDetail() {
                   <span className="text-[11px] text-zinc-400 group-hover:text-white">WhatsApp</span>
                 </a>
 
-                {/* Facebook */}
                 <a
                   href={shareLinks.facebook}
                   target="_blank"
@@ -681,7 +817,6 @@ export default function VideoDetail() {
                   <span className="text-[11px] text-zinc-400 group-hover:text-white">Facebook</span>
                 </a>
 
-                {/* X (Twitter) */}
                 <a
                   href={shareLinks.twitter}
                   target="_blank"
@@ -694,7 +829,6 @@ export default function VideoDetail() {
                   <span className="text-[11px] text-zinc-400 group-hover:text-white">X</span>
                 </a>
 
-                {/* LinkedIn */}
                 <a
                   href={shareLinks.linkedin}
                   target="_blank"
@@ -707,7 +841,6 @@ export default function VideoDetail() {
                   <span className="text-[11px] text-zinc-400 group-hover:text-white">LinkedIn</span>
                 </a>
 
-                {/* Reddit */}
                 <a
                   href={shareLinks.reddit}
                   target="_blank"
@@ -720,7 +853,6 @@ export default function VideoDetail() {
                   <span className="text-[11px] text-zinc-400 group-hover:text-white">Reddit</span>
                 </a>
 
-                {/* Email */}
                 <a
                   href={shareLinks.email}
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
@@ -733,7 +865,17 @@ export default function VideoDetail() {
 
               </div>
 
-              {/* Copy URL Input Group */}
+              {/* ✨ Share-at-current-timestamp toggle */}
+              <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={shareAtTimestamp}
+                  onChange={(e) => setShareAtTimestamp(e.target.checked)}
+                  className="accent-violet-500 w-3.5 h-3.5 cursor-pointer"
+                />
+                Share starting at {formatShareTime(currentTimeRef.current)}
+              </label>
+
               <div className="flex items-center gap-2 bg-black border border-zinc-800 rounded-xl p-1.5">
                 <input
                   type="text"
@@ -761,6 +903,24 @@ export default function VideoDetail() {
           <p className="text-xs font-semibold">{toastMessage}</p>
         </div>
       )}
+
+      {/* ✨ Keyframes for the like "+1" burst — Tailwind's arbitrary-value
+          animation utility (`animate-[likeBurst_...]`) picks this up
+          automatically since it's a global stylesheet rule. */}
+      <style>{`
+        @keyframes likeBurst {
+          0% { opacity: 0; transform: translateY(0) scale(0.8); }
+          20% { opacity: 1; transform: translateY(-4px) scale(1.1); }
+          100% { opacity: 0; transform: translateY(-22px) scale(1); }
+        }
+      `}</style>
     </div>
   );
+}
+
+function formatShareTime(sec) {
+  const s = Math.floor(sec || 0);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
 }
