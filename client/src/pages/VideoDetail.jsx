@@ -1,17 +1,17 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  fetchVideos, 
-  incrementVideoView, 
-  toggleSubscribeChannel, 
-  getCurrentUser, 
-  fetchCommentsByVideo, 
+import {
+  fetchVideos,
+  incrementVideoView,
+  toggleSubscribeChannel,
+  getCurrentUser,
+  fetchCommentsByVideo,
   addCommentToVideo,
   updateCommentApi,
   deleteCommentApi,
   toggleVideoLikeApi
 } from "../services/api";
-import { io } from "socket.io-client"; 
+import { io } from "socket.io-client";
 import {
   ThumbsUp,
   Share2,
@@ -31,8 +31,13 @@ import {
 import Navbar from "../components/Navbar";
 import VideoPlayer from "../components/VideoPlayer";
 
-const SOCKET_URL = "http://localhost:3000"; 
+const SOCKET_URL = "http://localhost:3000";
 const socket = io(SOCKET_URL);
+
+// Max number of times we'll retry incrementing the view count for a single
+// video before giving up. Prevents the "retry storm" bug where a failing
+// backend call gets re-fired on every timeupdate tick (every ~250ms).
+const MAX_VIEW_INCREMENT_ATTEMPTS = 3;
 
 export default function VideoDetail() {
   const { id } = useParams();
@@ -68,7 +73,13 @@ export default function VideoDetail() {
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Tracks videos whose "view" has already been counted this session so we
+  // never double count. A video's id lands here permanently once counted
+  // OR once it has exhausted its retry attempts on failure.
   const countedSessionRef = useRef(new Set());
+  // Tracks how many times we've *attempted* the increment call per video,
+  // so a persistently-failing backend can't trigger an infinite retry loop.
+  const viewAttemptCountRef = useRef({});
 
   useEffect(() => {
     loadInitialData();
@@ -127,7 +138,7 @@ export default function VideoDetail() {
     if (currentVideo?.user && currentUser) {
       const subs = currentVideo.user.subscribers || [];
       setSubscriberCount(subs.length);
-      
+
       const currentUserId = currentUser.id || currentUser._id;
       const isAlreadySubscribed = subs.some(
         sub => String(sub.subscriberId) === String(currentUserId)
@@ -215,6 +226,8 @@ export default function VideoDetail() {
       setLikeCount(previousCount);
       setToastMessage("Could not update like status.");
       setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setLikeLoading(false);
     }
   };
 
@@ -245,27 +258,58 @@ export default function VideoDetail() {
       }
     } catch (err) {
       console.error("Failed to post comment", err);
-      setToastMessage("Comment saved locally, syncing failed.");
+      setComments((prev) => prev.filter((c) => c.id !== tempCommentId));
+      setToastMessage("Failed to post comment. Please try again.");
       setTimeout(() => setToastMessage(null), 3000);
     }
   };
 
+  // 🔧 FIXED: this used to reset the "counted" lock on every failed request,
+  // which meant a persistently-failing backend call (e.g. a 500) got
+  // re-fired on every single `timeupdate` tick (every ~250ms) for as long
+  // as the video stayed past the 20% mark — a retry storm.
+  //
+  // Now: we attempt the increment at most MAX_VIEW_INCREMENT_ATTEMPTS times
+  // per video, then give up silently. No more infinite retries.
   const handleTimeUpdate = (e) => {
     const video = e.target;
     if (!video.duration || !currentVideo?.id) return;
-    if (countedSessionRef.current.has(currentVideo.id)) return;
+
+    const videoId = currentVideo.id;
+    if (countedSessionRef.current.has(videoId)) return;
 
     const watchedPercentage = (video.currentTime / video.duration) * 100;
-    if (watchedPercentage >= 20) {
-      countedSessionRef.current.add(currentVideo.id);
-      incrementVideoView(currentVideo.id)
-        .then((data) => {
-          if (data && data.success && typeof data.views === "number") {
-            setCurrentVideo((prev) => ({ ...prev, views: data.views }));
-          }
-        })
-        .catch(() => countedSessionRef.current.delete(currentVideo.id));
+    if (watchedPercentage < 20) return;
+
+    const attempts = viewAttemptCountRef.current[videoId] || 0;
+    if (attempts >= MAX_VIEW_INCREMENT_ATTEMPTS) {
+      // Give up for good — stop counting this video as "in progress" so we
+      // don't keep hammering a broken endpoint.
+      countedSessionRef.current.add(videoId);
+      return;
     }
+
+    // Lock immediately so no other timeupdate tick can race in before the
+    // request resolves. We do NOT unlock this on failure — see comment above.
+    countedSessionRef.current.add(videoId);
+    viewAttemptCountRef.current[videoId] = attempts + 1;
+
+    incrementVideoView(videoId)
+      .then((data) => {
+        if (data && data.success && typeof data.views === "number") {
+          setCurrentVideo((prev) =>
+            prev && String(prev.id) === String(videoId) ? { ...prev, views: data.views } : prev
+          );
+        }
+      })
+      .catch((err) => {
+        console.error(`Failed to increment view (attempt ${attempts + 1}/${MAX_VIEW_INCREMENT_ATTEMPTS})`, err);
+        if (attempts + 1 < MAX_VIEW_INCREMENT_ATTEMPTS) {
+          // Allow exactly one more retry on a future tick.
+          countedSessionRef.current.delete(videoId);
+        }
+        // else: stays locked, we've hit the cap, stop trying.
+      });
   };
 
   // Share helpers
@@ -310,7 +354,7 @@ export default function VideoDetail() {
     <div className="min-h-screen bg-black text-zinc-100 relative">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
-        
+
         {/* Left: Player Card, Info & Comments */}
         <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
           <div className="border border-zinc-900 rounded-2xl shadow-2xl overflow-hidden bg-zinc-950">
@@ -346,7 +390,7 @@ export default function VideoDetail() {
                       {subscriberCount} subscribers
                     </span>
                   </div>
-                  
+
                   <button
                     onClick={handleSubscribeToggle}
                     disabled={subscribingLoading}
@@ -375,7 +419,7 @@ export default function VideoDetail() {
                     <span>{likeCount}</span>
                   </button>
 
-                  {/* 🔗 Open Share Modal Button */}
+                  {/* Open Share Modal Button */}
                   <button
                     onClick={() => setIsShareModalOpen(true)}
                     className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300"
@@ -412,7 +456,7 @@ export default function VideoDetail() {
                 </p>
               </div>
 
-              {/* 💬 Comments Section UI */}
+              {/* Comments Section UI */}
               <div className="mt-4 flex flex-col gap-4 border border-zinc-900 rounded-xl p-4 bg-zinc-950">
                 <div className="flex items-center gap-2 pb-3 border-b border-zinc-900">
                   <MessageSquare className="w-4 h-4 text-zinc-400" />
@@ -458,14 +502,13 @@ export default function VideoDetail() {
                               (comm.user?.channelName || "U")[0].toUpperCase()
                             )}
                           </div>
-                          
+
                           <div className="flex flex-col w-full">
                             {/* Top Row: Channel Name + (Hover-based Edit/Delete + Date) */}
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
-                              
+
                               <div className="flex items-center gap-2.5">
-                                {/* 🛠️ EDIT/DELETE: Default hidden, appears only on hover of the comment box */}
                                 {isOwner && !isEditing && (
                                   <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                     <button
@@ -590,15 +633,15 @@ export default function VideoDetail() {
         </div>
       </div>
 
-      {/* 🚀 SHARE POPUP MODAL */}
+      {/* SHARE POPUP MODAL */}
       {isShareModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
-            
+
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900">
               <h3 className="font-bold text-sm text-white">Share video</h3>
-              <button 
+              <button
                 onClick={() => setIsShareModalOpen(false)}
                 className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-900 transition cursor-pointer"
               >
@@ -608,14 +651,14 @@ export default function VideoDetail() {
 
             {/* Modal Body */}
             <div className="p-6 flex flex-col gap-6">
-              
+
               {/* Social Share Grid */}
               <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 text-center">
-                
+
                 {/* WhatsApp */}
-                <a 
-                  href={shareLinks.whatsapp} 
-                  target="_blank" 
+                <a
+                  href={shareLinks.whatsapp}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
                 >
@@ -626,9 +669,9 @@ export default function VideoDetail() {
                 </a>
 
                 {/* Facebook */}
-                <a 
-                  href={shareLinks.facebook} 
-                  target="_blank" 
+                <a
+                  href={shareLinks.facebook}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
                 >
@@ -639,9 +682,9 @@ export default function VideoDetail() {
                 </a>
 
                 {/* X (Twitter) */}
-                <a 
-                  href={shareLinks.twitter} 
-                  target="_blank" 
+                <a
+                  href={shareLinks.twitter}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
                 >
@@ -652,9 +695,9 @@ export default function VideoDetail() {
                 </a>
 
                 {/* LinkedIn */}
-                <a 
-                  href={shareLinks.linkedin} 
-                  target="_blank" 
+                <a
+                  href={shareLinks.linkedin}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
                 >
@@ -665,9 +708,9 @@ export default function VideoDetail() {
                 </a>
 
                 {/* Reddit */}
-                <a 
-                  href={shareLinks.reddit} 
-                  target="_blank" 
+                <a
+                  href={shareLinks.reddit}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
                 >
@@ -678,7 +721,7 @@ export default function VideoDetail() {
                 </a>
 
                 {/* Email */}
-                <a 
+                <a
                   href={shareLinks.email}
                   className="flex flex-col items-center gap-1.5 group cursor-pointer"
                 >
@@ -692,9 +735,9 @@ export default function VideoDetail() {
 
               {/* Copy URL Input Group */}
               <div className="flex items-center gap-2 bg-black border border-zinc-800 rounded-xl p-1.5">
-                <input 
-                  type="text" 
-                  readOnly 
+                <input
+                  type="text"
+                  readOnly
                   value={currentVideoUrl}
                   className="w-full bg-transparent px-3 text-xs text-zinc-300 focus:outline-none font-mono"
                 />

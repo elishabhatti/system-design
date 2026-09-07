@@ -46,7 +46,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const [seekFlash, setSeekFlash] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🎛️ Settings Menu & Quality States
+  // Settings Menu & Quality States
   const [activeMenu, setActiveMenu] = useState(null); // 'main', 'speed', 'quality'
   const [levels, setLevels] = useState([]);
   const [currentLevel, setCurrentLevel] = useState(-1); // -1 means Auto
@@ -54,10 +54,16 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
   const hideTimer = useRef(null);
   const hlsRef = useRef(null);
 
-  // 🌐 HLS.js integration with Quality Levels detection
+  // HLS.js integration with Quality Levels detection
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
+
+    // Reset quality menu state for the new source — levels from the
+    // previous video are meaningless once src changes.
+    setLevels([]);
+    setCurrentLevel(-1);
+    setActiveMenu(null);
 
     if (src.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -79,11 +85,36 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
 
         return () => {
           hls.destroy();
+          hlsRef.current = null;
         };
       }
     } else {
       video.src = src;
     }
+  }, [src]);
+
+  // 🔧 FIXED: `volume={volume}` / `playbackRate={speed}` as JSX props on a
+  // <video> element do nothing — the browser doesn't expose them as HTML
+  // attributes, only as JS properties on the media element. That meant
+  // switching videos silently reset volume/speed/mute to browser defaults
+  // instead of carrying over the user's chosen settings. We now apply them
+  // imperatively whenever the source (re)loads.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    const applySettings = () => {
+      v.volume = volume;
+      v.muted = muted;
+      v.playbackRate = speed;
+    };
+
+    applySettings();
+    v.addEventListener("loadedmetadata", applySettings);
+    return () => v.removeEventListener("loadedmetadata", applySettings);
+    // Only re-run when the source changes — volume/muted/speed changes are
+    // already applied immediately by their own handlers below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   const changeQuality = (index) => {
@@ -155,19 +186,23 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     const v = videoRef.current;
     const val = parseFloat(e.target.value);
     setVolume(val);
-    v.volume = val;
-    v.muted = val === 0;
+    if (v) {
+      v.volume = val;
+      v.muted = val === 0;
+    }
     setMuted(val === 0);
   };
 
   const toggleMute = () => {
     const v = videoRef.current;
+    if (!v) return;
     v.muted = !v.muted;
     setMuted(v.muted);
   };
 
   const changeSpeed = (s) => {
-    videoRef.current.playbackRate = s;
+    const v = videoRef.current;
+    if (v) v.playbackRate = s;
     setSpeed(s);
     setActiveMenu(null);
   };
@@ -234,6 +269,10 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     const onPause = () => setPlaying(false);
     const onWaiting = () => setLoading(true);
     const onCanPlay = () => setLoading(false);
+    const onError = () => {
+      console.error("Video failed to load:", v.error);
+      setLoading(false);
+    };
 
     v.addEventListener("timeupdate", onTimeUpdate);
     v.addEventListener("loadedmetadata", onLoadedMeta);
@@ -242,6 +281,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
     v.addEventListener("pause", onPause);
     v.addEventListener("waiting", onWaiting);
     v.addEventListener("canplay", onCanPlay);
+    v.addEventListener("error", onError);
 
     return () => {
       v.removeEventListener("timeupdate", onTimeUpdate);
@@ -251,8 +291,9 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
       v.removeEventListener("pause", onPause);
       v.removeEventListener("waiting", onWaiting);
       v.removeEventListener("canplay", onCanPlay);
+      v.removeEventListener("error", onError);
     };
-  }, [src]);
+  }, [src, handleTimeUpdate]);
 
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -273,9 +314,6 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
         ref={videoRef}
         poster={poster}
         autoPlay
-        muted={muted}
-        volume={volume}
-        playbackRate={speed}
         playsInline
         className="w-full h-full object-contain"
         onClick={togglePlay}
@@ -412,7 +450,7 @@ export default function VideoPlayer({ src, isLive, poster, handleTimeUpdate }) {
           </div>
 
           <div className="flex items-center gap-3 relative">
-            {/* ⚙️ Settings / Gear Menu */}
+            {/* Settings / Gear Menu */}
             <div className="relative">
               <button
                 onClick={() => setActiveMenu(activeMenu === 'main' ? null : 'main')}
