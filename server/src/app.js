@@ -14,6 +14,7 @@ import Redis from "ioredis";
 import helmet from "helmet";
 
 const app = express();
+app.set("trust proxy", 1);
 const server = http.createServer(app);
 
 const redisHost = process.env.REDIS_HOST
