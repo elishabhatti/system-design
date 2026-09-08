@@ -9,7 +9,7 @@ const router = Router();
 router.post('/upload', protect, upload.single('video'), uploadVideo);
 router.get('/', getVideos);
 router.delete('/:id', protect, deleteVideo);
-router.post('/:id/view', apiLimiter, incrementVideoView);
+router.post('/:id/view', protect, apiLimiter, incrementVideoView);
 router.post('/:videoId/like', protect, apiLimiter, toggleVideoLike);
 
 export default router;
