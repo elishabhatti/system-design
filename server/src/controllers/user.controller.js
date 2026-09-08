@@ -1,7 +1,7 @@
 import prisma from '../config/db.js';  
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import redis from "../config/redis.js";
+import redis from '../config/redis.js'; // 👉 Redis client import kar liya
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -98,41 +98,41 @@ export const logout = (req, res) => {
   res.json({ message: 'Logged out successfully' });
 };
 
-// 1. Get Logged-in User Profile with Redis Caching
+// Get Current Logged-in User Profile (Redis Cached ✨)
 export const getMe = async (req, res) => {
   try {
     const userId = req.userId;
     const cacheKey = `user:profile:${userId}`;
 
-    // Step A: Check Redis Cache first
+    // 1. Check Redis Cache First
     const cachedUser = await redis.get(cacheKey);
     if (cachedUser) {
-      // Cache HIT: Fast response from RAM
       res.setHeader("X-Cache", "HIT");
-      return res.json({ user: JSON.parse(cachedUser) });
+      return res.json(JSON.parse(cachedUser));
     }
 
-    // Step B: Cache MISS: Fetch from Database (Prisma)
+    // 2. If Cache Miss, fetch from DB
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: { id: true, channelName: true, email: true, avatarUrl: true, bio: true, createdAt: true, bannerUrl: true, subscribers: true },
     });
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: 'User not found.' });
     }
 
-    // Step C: Save data to Redis cache with TTL (e.g., 1 hour = 3600 seconds)
+    // 3. Save to Redis Cache (TTL: 1 Hour = 3600 seconds)
     await redis.setex(cacheKey, 3600, JSON.stringify(user));
 
     res.setHeader("X-Cache", "MISS");
-    res.json({ user });
+    res.json(user);
   } catch (err) {
-    console.error("Get me error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error('Get me error:', err);
+    res.status(500).json({ error: 'Server error.' });
   }
 };
 
-// 2. Update Profile & Invalidate / Update Cache
+// Update Profile & Refresh Redis Cache 🔄
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.userId; 
@@ -146,9 +146,10 @@ export const updateProfile = async (req, res) => {
         ...(avatarUrl !== undefined && { avatarUrl }),
         ...(bannerUrl !== undefined && { bannerUrl }),
       },
+      select: { id: true, channelName: true, email: true, avatarUrl: true, bio: true, createdAt: true, bannerUrl: true, subscribers: true },
     });
 
-    // Cache Invalidation / Update: Naya data foran Redis mein overwrite kar do
+    // Update/Overwrite Redis Cache immediately with new profile data
     const cacheKey = `user:profile:${userId}`;
     await redis.setex(cacheKey, 3600, JSON.stringify(updatedUser));
 
@@ -158,6 +159,7 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ error: "Server error while updating profile" });
   }
 };
+
 export const toggleSubscription = async (req, res) => {
   try {
     const subscriberId = req.userId;
@@ -234,4 +236,4 @@ export const getAllSubscriptions = async (req, res) => {
     console.error("Error fetching subscriptions:", error);
     res.status(500).json({ error: "Internal server error" });
   }
-}
+};
