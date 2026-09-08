@@ -1,6 +1,7 @@
 import prisma from '../config/db.js';  
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import redis from "../config/redis.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -97,25 +98,41 @@ export const logout = (req, res) => {
   res.json({ message: 'Logged out successfully' });
 };
 
-// Get Current Logged-in User Profile
+// 1. Get Logged-in User Profile with Redis Caching
 export const getMe = async (req, res) => {
   try {
+    const userId = req.userId;
+    const cacheKey = `user:profile:${userId}`;
+
+    // Step A: Check Redis Cache first
+    const cachedUser = await redis.get(cacheKey);
+    if (cachedUser) {
+      // Cache HIT: Fast response from RAM
+      res.setHeader("X-Cache", "HIT");
+      return res.json({ user: JSON.parse(cachedUser) });
+    }
+
+    // Step B: Cache MISS: Fetch from Database (Prisma)
     const user = await prisma.user.findUnique({
-      where: { id: req.userId },
-      select: { id: true, channelName: true, email: true, avatarUrl: true, bio: true, createdAt: true, bannerUrl: true, subscribers: true },
+      where: { id: userId },
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found.' });
+      return res.status(404).json({ error: "User not found" });
     }
 
-    res.json(user);
+    // Step C: Save data to Redis cache with TTL (e.g., 1 hour = 3600 seconds)
+    await redis.setex(cacheKey, 3600, JSON.stringify(user));
+
+    res.setHeader("X-Cache", "MISS");
+    res.json({ user });
   } catch (err) {
-    console.error('Get me error:', err);
-    res.status(500).json({ error: 'Server error.' });
+    console.error("Get me error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
+// 2. Update Profile & Invalidate / Update Cache
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.userId; 
@@ -131,13 +148,16 @@ export const updateProfile = async (req, res) => {
       },
     });
 
+    // Cache Invalidation / Update: Naya data foran Redis mein overwrite kar do
+    const cacheKey = `user:profile:${userId}`;
+    await redis.setex(cacheKey, 3600, JSON.stringify(updatedUser));
+
     res.json({ message: "Profile updated successfully", user: updatedUser });
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ error: "Server error while updating profile" });
   }
 };
-
 export const toggleSubscription = async (req, res) => {
   try {
     const subscriberId = req.userId;
