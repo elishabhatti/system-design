@@ -24,6 +24,7 @@ export const uploadVideo = async (req, res) => {
       return res.status(400).json({ error: "Video file is required." });
     }
 
+    // 1. Create Video in Database
     const newVideo = await prisma.video.create({
       data: {
         title: title || file.originalname,
@@ -52,32 +53,48 @@ export const uploadVideo = async (req, res) => {
       }
     });
     
+    // 2. Invalidate Global Video Feed Cache
     await redis.del("videos:all");
 
-    // --- UPLOAD NOTIFICATION LOGIC ---
-    // 1. Creator ke sabhi subscribers ko fetch karein
+    // --- OPTIMIZED UPLOAD NOTIFICATION LOGIC ---
+    // 3. Fetch all subscribers of the creator
     const subscriptions = await prisma.subscription.findMany({
       where: { channelId: userId },
+      select: { subscriberId: true }
     });
 
-    const io = req.app.get("io");
+    if (subscriptions.length > 0) {
+      // Prepare bulk data array for notifications
+      const notificationData = subscriptions.map(sub => ({
+        userId: sub.subscriberId,
+        senderId: userId,
+        type: 'UPLOAD',
+        message: `uploaded a new video: "${newVideo.title}"`,
+      }));
 
-    // 2. Har subscriber ke liye notification create karein aur emit karein
-    for (const sub of subscriptions) {
-      const notification = await prisma.notification.create({
-        data: {
-          userId: sub.subscriberId, // Subscriber jisko notification jayegi
-          senderId: userId,         // Creator jisne video upload ki
-          type: 'UPLOAD',
-          message: `uploaded a new video: "${newVideo.title}"`,
-        },
-        include: {
-          sender: { select: { id: true, channelName: true, avatarUrl: true } }
-        }
+      // 4. Bulk insert notifications using Prisma createMany (Lightning Fast ⚡)
+      await prisma.notification.createMany({
+        data: notificationData,
+        skipDuplicates: true,
       });
 
+      // 5. Emit real-time socket events to subscribers
+      const io = req.app.get("io");
       if (io) {
-        io.to(sub.subscriberId).emit('newNotification', notification);
+        const senderInfo = {
+          id: newVideo.user.id,
+          channelName: newVideo.user.channelName,
+          avatarUrl: newVideo.user.avatarUrl
+        };
+
+        subscriptions.forEach(sub => {
+          io.to(sub.subscriberId).emit('newNotification', {
+            type: 'UPLOAD',
+            message: `uploaded a new video: "${newVideo.title}"`,
+            sender: senderInfo,
+            createdAt: new Date(),
+          });
+        });
       }
     }
 
