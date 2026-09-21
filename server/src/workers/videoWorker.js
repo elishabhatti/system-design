@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import prisma from "../config/db";
+import prisma from '../config/db.js';  
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
