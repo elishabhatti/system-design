@@ -3,6 +3,7 @@ import redis from '../config/redis.js';
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
+import { videoQueue } from '../queues/videoQueues.js';
 
 export const uploadVideo = async (req, res) => {
   try {
@@ -24,7 +25,7 @@ export const uploadVideo = async (req, res) => {
       return res.status(400).json({ error: "Video file is required." });
     }
 
-    // 1. Create Video in Database
+    // 1. Create Video in Database (Fast)
     const newVideo = await prisma.video.create({
       data: {
         title: title || file.originalname,
@@ -56,49 +57,25 @@ export const uploadVideo = async (req, res) => {
     // 2. Invalidate Global Video Feed Cache
     await redis.del("videos:all");
 
-    // --- OPTIMIZED UPLOAD NOTIFICATION LOGIC ---
-    // 3. Fetch all subscribers of the creator
-    const subscriptions = await prisma.subscription.findMany({
-      where: { channelId: userId },
-      select: { subscriberId: true }
+    // 3. Push to BullMQ Queue (Async Background Job) ⚡
+    await videoQueue.add("processVideoUpload", {
+      videoId: newVideo.id,
+      videoTitle: newVideo.title,
+      userId: userId,
+      senderInfo: {
+        id: newVideo.user.id,
+        channelName: newVideo.user.channelName,
+        avatarUrl: newVideo.user.avatarUrl
+      }
     });
 
-    if (subscriptions.length > 0) {
-      // Prepare bulk data array for notifications
-      const notificationData = subscriptions.map(sub => ({
-        userId: sub.subscriberId,
-        senderId: userId,
-        type: 'UPLOAD',
-        message: `uploaded a new video: "${newVideo.title}"`,
-      }));
+    // 4. Send immediate response back to client (No waiting!)
+    return res.status(201).json({
+      success: true,
+      message: "Video uploaded successfully! Processing and notifications running in background.",
+      video: newVideo
+    });
 
-      // 4. Bulk insert notifications using Prisma createMany (Lightning Fast ⚡)
-      await prisma.notification.createMany({
-        data: notificationData,
-        skipDuplicates: true,
-      });
-
-      // 5. Emit real-time socket events to subscribers
-      const io = req.app.get("io");
-      if (io) {
-        const senderInfo = {
-          id: newVideo.user.id,
-          channelName: newVideo.user.channelName,
-          avatarUrl: newVideo.user.avatarUrl
-        };
-
-        subscriptions.forEach(sub => {
-          io.to(sub.subscriberId).emit('newNotification', {
-            type: 'UPLOAD',
-            message: `uploaded a new video: "${newVideo.title}"`,
-            sender: senderInfo,
-            createdAt: new Date(),
-          });
-        });
-      }
-    }
-
-    return res.status(201).json(newVideo);
   } catch (error) {
     console.error("Upload error:", error);
     return res.status(500).json({ error: error.message });
