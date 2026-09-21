@@ -17,8 +17,8 @@ const app = express();
 app.set("trust proxy", 1);
 const server = http.createServer(app);
 
-const redisHost = process.env.REDIS_HOST
-const redisPort = process.env.REDIS_PORT
+const redisHost = process.env.REDIS_HOST;
+const redisPort = process.env.REDIS_PORT;
 const pubClient = new Redis({ host: redisHost, port: redisPort });
 const subClient = pubClient.duplicate();
 
@@ -26,13 +26,13 @@ const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
 io.adapter(createAdapter(pubClient, subClient));
 
-app.set("io", io); 
+app.set("io", io);
 
 io.on("connection", (socket) => {
   socket.on("joinRoom", (userId) => {
@@ -52,9 +52,11 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {});
 });
 
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 
 app.use(morgan("dev"));
 
