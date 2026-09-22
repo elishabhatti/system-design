@@ -1,5 +1,8 @@
 import { Worker } from "bullmq";
 import prisma from '../config/db.js';  
+import ffmpeg from 'fluent-ffmpeg';
+import path from 'path';
+import fs from 'fs';
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
@@ -9,49 +12,87 @@ const connection = {
 const videoWorker = new Worker(
   "videoQueue",
   async (job) => {
-    const { videoId, videoTitle, userId, senderInfo } = job.data;
-    console.log(`[Worker] Processing job ID: ${job.id}, Video ID: ${videoId}`);
+    const { videoId, videoTitle, userId, senderInfo, filepath, filename } = job.data;
+    console.log(`[Worker] Starting transcoding for Job ID: ${job.id}, Video ID: ${videoId}`);
     
-    // 1. Simulating heavy task (e.g., FFmpeg processing / Thumbnail generation)
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    
-    // 2. Fetch all subscribers of the creator
-    const subscriptions = await prisma.subscription.findMany({
-      where: { channelId: userId },
-      select: { subscriberId: true }
-    });
+    try {
+      // 1. Define output path for transcoded video
+      const outputDir = path.join(process.cwd(), "uploads", "processed");
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      
+      const outputFilename = `processed-${Date.now()}-${filename}`;
+      const outputPath = path.join(outputDir, outputFilename);
 
-    if (subscriptions.length > 0) {
-      // 3. Prepare bulk data array for notifications
-      const notificationData = subscriptions.map(sub => ({
-        userId: sub.subscriberId,
-        senderId: userId,
-        type: 'UPLOAD',
-        message: `uploaded a new video: "${videoTitle}"`,
-      }));
-
-      // 4. Bulk insert notifications using Prisma createMany (Fast ⚡)
-      await prisma.notification.createMany({
-        data: notificationData,
-        skipDuplicates: true,
+      // 2. Run FFmpeg Transcoding (Convert to 720p web-friendly MP4)
+      await new Promise((resolve, reject) => {
+        ffmpeg(filepath)
+          .output(outputPath)
+          .videoCodec('libx264')
+          .audioCodec('aac')
+          .size('?x720') // Resize height to 720p preserving aspect ratio
+          .on('end', () => {
+            console.log(`[FFmpeg] Transcoding finished for video ID: ${videoId}`);
+            resolve();
+          })
+          .on('error', (err) => {
+            console.error(`[FFmpeg Error]: ${err.message}`);
+            reject(err);
+          })
+          .run();
       });
 
-      // 5. Emit real-time socket events to subscribers
-      // (Note: Make sure global.io is set in your main server file like `global.io = io`)
-      if (global.io) {
-        subscriptions.forEach(sub => {
-          global.io.to(sub.subscriberId).emit('newNotification', {
-            type: 'UPLOAD',
-            message: `uploaded a new video: "${videoTitle}"`,
-            sender: senderInfo,
-            createdAt: new Date(),
-          });
+      // 3. Update Database: Mark video as processed and update file path
+      await prisma.video.update({
+        where: { id: videoId },
+        data: { 
+          filepath: outputPath,
+          isProcessed: true 
+        }
+      });
+
+      // 4. Fetch all subscribers of the creator
+      const subscriptions = await prisma.subscription.findMany({
+        where: { channelId: userId },
+        select: { subscriberId: true }
+      });
+
+      if (subscriptions.length > 0) {
+        // 5. Prepare bulk data array for notifications
+        const notificationData = subscriptions.map(sub => ({
+          userId: sub.subscriberId,
+          senderId: userId,
+          type: 'UPLOAD',
+          message: `uploaded a new video: "${videoTitle}"`,
+        }));
+
+        // 6. Bulk insert notifications using Prisma createMany (Fast ⚡)
+        await prisma.notification.createMany({
+          data: notificationData,
+          skipDuplicates: true,
         });
+
+        // 7. Emit real-time socket events to subscribers
+        if (global.io) {
+          subscriptions.forEach(sub => {
+            global.io.to(sub.subscriberId).emit('newNotification', {
+              type: 'UPLOAD',
+              message: `uploaded a new video: "${videoTitle}"`,
+              sender: senderInfo,
+              createdAt: new Date(),
+            });
+          });
+        }
       }
+      
+      console.log(`[Worker] Job ${job.id} finished successfully for video ID: ${videoId}`);
+      return { status: "success" };
+
+    } catch (error) {
+      console.error(`[Worker Error] Job ${job.id} failed:`, error.message);
+      throw error;
     }
-    
-    console.log(`[Worker] Job finished for video ID: ${videoId}`);
-    return { status: "success" };
   },
   { connection }
 );
