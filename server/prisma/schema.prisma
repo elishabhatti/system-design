@@ -40,7 +40,6 @@ model Subscription {
   createdAt    DateTime @default(now())
 
   @@unique([subscriberId, channelId]) 
-  // 👉 OPTIMIZATION: Subscriptions lookup fast karne ke liye indexes
   @@index([subscriberId])
   @@index([channelId])
 }
@@ -56,7 +55,7 @@ model Like {
 
   @@unique([userId, videoId])
   @@index([videoId]) 
-  @@index([userId]) // 👉 OPTIMIZATION: User ki liked videos nikalne ke liye
+  @@index([userId])
 }
 
 model Comment {
@@ -71,14 +70,14 @@ model Comment {
   video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([videoId]) 
-  @@index([userId]) // 👉 OPTIMIZATION: User ke comments track karne ke liye
+  @@index([userId])
 }
 
 model Notification {
   id        String   @id @default(uuid())
-  userId    String   // Jisko notification jaani hai (Channel owner)
-  senderId  String   // Jisne action kiya (Subscriber ya Commenter)
-  type      String   // 'SUBSCRIBE' ya 'COMMENT'
+  userId    String
+  senderId  String
+  type      String
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -86,7 +85,6 @@ model Notification {
   user   User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
   sender User @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
 
-  // 👉 OPTIMIZATION: User ki notifications fast fetch karne ke liye
   @@index([userId])
   @@index([read])
 }
@@ -108,17 +106,31 @@ model Video {
   scheduledFor  DateTime?
   views         Int       @default(0) 
   uploadedAt    DateTime  @default(now())
+  isProcessed   Boolean   @default(false)
 
   userId        String    
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   viewsRelation View[]    
   likes         Like[]
   comments      Comment[]
+  qualities     VideoQuality[]
 
-  // 👉 OPTIMIZATION: User ki videos aur category/upload date ke mutabiq filtering fast karne ke liye
   @@index([userId])
   @@index([category])
   @@index([uploadedAt])
+}
+
+model VideoQuality {
+  id         String   @id @default(uuid())
+  videoId    String
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  resolution String   // "720p", "480p", "360p"
+  filepath   String
+  filesize   Int
+  createdAt  DateTime @default(now())
+
+  @@unique([videoId, resolution])
+  @@index([videoId])
 }
 
 model View {
@@ -129,7 +141,6 @@ model View {
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@unique([userId, videoId])
-  // 👉 OPTIMIZATION: View tracking check karne ke liye index
   @@index([videoId])
   @@index([userId])
 }
