@@ -57,11 +57,13 @@ export const uploadVideo = async (req, res) => {
     // 2. Invalidate Global Video Feed Cache
     await redis.del("videos:all");
 
-    // 3. Push to BullMQ Queue (Async Background Job) ⚡
+    // 3. Push to BullMQ Queue with file details for background transcoding ⚡
     await videoQueue.add("processVideoUpload", {
       videoId: newVideo.id,
       videoTitle: newVideo.title,
       userId: userId,
+      filepath: newVideo.filepath, // Passed for FFmpeg
+      filename: newVideo.filename, // Passed for FFmpeg
       senderInfo: {
         id: newVideo.user.id,
         channelName: newVideo.user.channelName,
@@ -72,7 +74,7 @@ export const uploadVideo = async (req, res) => {
     // 4. Send immediate response back to client (No waiting!)
     return res.status(201).json({
       success: true,
-      message: "Video uploaded successfully! Processing and notifications running in background.",
+      message: "Video uploaded successfully! Background transcoding and notifications running.",
       video: newVideo
     });
 
