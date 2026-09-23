@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { getVideos, uploadVideo, deleteVideo, incrementVideoView, toggleVideoLike } from '../controllers/video.controller.js';
 import { upload } from '../config/cloudinary.js'; 
 import { protect } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.middleware.js';
+import { deleteVideo, getVideos, incrementVideoView, toggleVideoLike } from '../controllers/video.controller.js';
 
 const router = Router();
 
