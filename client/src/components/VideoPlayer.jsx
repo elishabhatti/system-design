@@ -20,7 +20,7 @@ import {
 
 import { useHlsSource } from"../hooks/useHlsSource";
 import { useResumePlayback } from "../hooks/useResumePlayback";
-import { useResumePlayback } from "../hooks/useResumePlayback";
+import { usePlayerKeyboardShortcuts } from "../hooks/usePlayerKeyboardShortcuts";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 

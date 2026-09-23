@@ -22,9 +22,9 @@ import VideoPlayer from "../components/VideoPlayer";
 
 import { useVideoLikes } from "../hooks/useVideoLikes";
 import { useChannelSubscription } from "../hooks/useChannelSubscription";
-import { useVideoComments } from "../hooks/useVideoComments";
+import { useVideoComments } from "../hooks/useVideoComment";
 import { useLiveViewCount } from "../hooks/useLiveViewCount";
-import { useViewIncrementOnWatch } from "../hooks/useViewIncrementOnWatch";
+import { useViewIncrementOnWatch } from "../hooks/useViewIncmrentOnWatch";
 import { useAutoplayNext } from "../hooks/useAutoplayNext";
 import { useShareModal, formatShareTime } from "../hooks/useShareModal";
 import { useToast } from "../hooks/useToast";
