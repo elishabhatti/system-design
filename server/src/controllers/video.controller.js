@@ -1,14 +1,12 @@
 import * as videoService from '../services/video.services.js';
 
-const sendError = (res, status, message) => res.status(status).json({ success: false, message });
-
 export const uploadVideo = async (req, res) => {
   try {
     const file = req.file;
     const userId = req.userId;
 
     if (!file) {
-      return sendError(res, 400, "Video file is required.");
+      return res.status(400).json({ error: "Video file is required." });
     }
 
     const video = await videoService.createVideo({
@@ -20,26 +18,28 @@ export const uploadVideo = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Video uploaded successfully! Background transcoding and notifications running.",
-      data: video,
+      video,
     });
   } catch (error) {
     console.error("Upload error:", error);
-    return sendError(res, 500, error.message);
+    return res.status(500).json({ error: error.message });
   }
 };
 
 export const getVideos = async (req, res) => {
   try {
+    const currentPort = process.env.PORT || 3000;
     const { videos, source } = await videoService.listVideos();
+
     return res.status(200).json({
+      videos,
       success: true,
-      message: "Videos fetched successfully.",
-      data: videos,
       source,
+      servedByPort: currentPort,
     });
   } catch (error) {
     console.error('Error fetching videos:', error);
-    return sendError(res, 500, error.message);
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -51,16 +51,16 @@ export const deleteVideo = async (req, res) => {
     });
 
     if (result.status === "not_found") {
-      return sendError(res, 404, "Video not found.");
+      return res.status(404).json({ error: "Video not found." });
     }
     if (result.status === "forbidden") {
-      return sendError(res, 403, "You are not the owner of this video.");
+      return res.status(403).json({ error: "You are not the owner of this video." });
     }
 
-    return res.status(200).json({ success: true, message: "Video deleted successfully." });
+    return res.status(200).json({ message: "Video deleted successfully." });
   } catch (error) {
     console.error('Error deleting video:', error);
-    return sendError(res, 500, error.message);
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -76,14 +76,10 @@ export const incrementVideoView = async (req, res) => {
       return res.status(200).json({ success: true, message: "Request already in progress." });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "View recorded.",
-      data: { views: result.views },
-    });
+    return res.status(200).json({ success: true, views: result.views });
   } catch (error) {
     console.error("Error incrementing view:", error);
-    return sendError(res, 500, error.message);
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -96,16 +92,16 @@ export const toggleVideoLike = async (req, res) => {
     });
 
     if (result.status === "not_found") {
-      return sendError(res, 404, "Video not found.");
+      return res.status(404).json({ error: "Video not found" });
     }
 
     return res.status(200).json({
       success: true,
-      message: result.isLiked ? "Video liked." : "Video unliked.",
-      data: { isLiked: result.isLiked, likeCount: result.likeCount },
+      isLiked: result.isLiked,
+      likeCount: result.likeCount,
     });
   } catch (error) {
     console.error("Error toggling like:", error);
-    return sendError(res, 500, error.message);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };

@@ -1,9 +1,8 @@
-import prisma from '../config/db.js';
-import redis from '../config/redis.js';
-import fs from 'fs';
-import { videoQueue } from '../queues/videoQueues.js';
-import { CACHE_KEYS, buildViewLockKey } from '../config/constants/cache.keys.js';
-
+import prisma from "../config/db.js";
+import redis from "../config/redis.js";
+import fs from "fs";
+import { videoQueue } from "../queues/videoQueues.js";
+import { buildViewLockKey, CACHE_KEYS } from "../constants/cache.keys.js";
 const VIDEO_LIST_CACHE_TTL_SECONDS = 300;
 const VIEW_LOCK_TTL_SECONDS = 10;
 
@@ -37,8 +36,8 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
       mimetype: fileMeta.mimetype,
       category: category || "General",
       tags: tags || "",
-      isMadeForKids: isMadeForKids === 'true' || isMadeForKids === true,
-      ageRestricted: ageRestricted === 'true' || ageRestricted === true,
+      isMadeForKids: isMadeForKids === "true" || isMadeForKids === true,
+      ageRestricted: ageRestricted === "true" || ageRestricted === true,
       visibility: visibility || "private",
       scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
       userId,
@@ -79,10 +78,14 @@ export const listVideos = async () => {
       user: { select: videoOwnerSelect },
       _count: { select: { likes: true } },
     },
-    orderBy: { uploadedAt: 'desc' },
+    orderBy: { uploadedAt: "desc" },
   });
 
-  await redis.setex(CACHE_KEYS.ALL_VIDEOS, VIDEO_LIST_CACHE_TTL_SECONDS, JSON.stringify(videos));
+  await redis.setex(
+    CACHE_KEYS.ALL_VIDEOS,
+    VIDEO_LIST_CACHE_TTL_SECONDS,
+    JSON.stringify(videos),
+  );
   return { videos, source: "database" };
 };
 
@@ -101,7 +104,8 @@ export const deleteVideoById = async ({ videoId, userId }) => {
 
   // Remove the physical file too — DB delete alone leaks disk space over time.
   fs.unlink(video.filepath, (err) => {
-    if (err) console.error(`Failed to remove file for video ${videoId}:`, err.message);
+    if (err)
+      console.error(`Failed to remove file for video ${videoId}:`, err.message);
   });
 
   await invalidateVideoListCache();
@@ -110,7 +114,13 @@ export const deleteVideoById = async ({ videoId, userId }) => {
 
 export const incrementView = async ({ videoId, userId, io }) => {
   const lockKey = buildViewLockKey(userId, videoId);
-  const acquiredLock = await redis.set(lockKey, "locked", "EX", VIEW_LOCK_TTL_SECONDS, "NX");
+  const acquiredLock = await redis.set(
+    lockKey,
+    "locked",
+    "EX",
+    VIEW_LOCK_TTL_SECONDS,
+    "NX",
+  );
 
   if (!acquiredLock) {
     return { status: "in_progress" };
@@ -122,7 +132,10 @@ export const incrementView = async ({ videoId, userId, io }) => {
     });
 
     if (existingView) {
-      const video = await prisma.video.findUnique({ where: { id: videoId }, select: { views: true } });
+      const video = await prisma.video.findUnique({
+        where: { id: videoId },
+        select: { views: true },
+      });
       return { status: "already_viewed", views: video?.views || 0 };
     }
 
@@ -135,7 +148,9 @@ export const incrementView = async ({ videoId, userId, io }) => {
     });
 
     if (io) {
-      io.to(`video_${videoId}`).emit("view_updated", { views: updatedVideo.views });
+      io.to(`video_${videoId}`).emit("view_updated", {
+        views: updatedVideo.views,
+      });
     }
 
     // Deliberately NOT invalidating videos:all here. Views change on nearly
@@ -144,8 +159,11 @@ export const incrementView = async ({ videoId, userId, io }) => {
 
     return { status: "ok", views: updatedVideo.views };
   } catch (error) {
-    if (error.code === 'P2002') {
-      const video = await prisma.video.findUnique({ where: { id: videoId }, select: { views: true } });
+    if (error.code === "P2002") {
+      const video = await prisma.video.findUnique({
+        where: { id: videoId },
+        select: { views: true },
+      });
       return { status: "already_viewed", views: video?.views || 0 };
     }
     throw error;
@@ -182,8 +200,8 @@ export const toggleLike = async ({ videoId, userId, io }) => {
       const notification = await prisma.notification.create({
         data: {
           userId: video.userId, // Video ka malik
-          senderId: userId,     // Jisne like kiya
-          type: 'LIKE',
+          senderId: userId, // Jisne like kiya
+          type: "LIKE",
           message: `liked your video: "${video.title}"`,
         },
         include: {
@@ -192,7 +210,7 @@ export const toggleLike = async ({ videoId, userId, io }) => {
       });
 
       if (io) {
-        io.to(video.userId).emit('newNotification', notification);
+        io.to(video.userId).emit("newNotification", notification);
       }
     }
   }

@@ -1,7 +1,7 @@
 import prisma from '../config/db.js';  
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import redis from '../config/redis.js'; // 👉 Redis client import kar liya
+import redis from '../config/redis.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
