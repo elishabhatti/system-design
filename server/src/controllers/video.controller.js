@@ -1,4 +1,4 @@
-import * as videoService from '../services/videoService.js';
+import * as videoService from '../services/video.services.js';
 
 const sendError = (res, status, message) => res.status(status).json({ success: false, message });
 

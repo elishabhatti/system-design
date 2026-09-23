@@ -2,7 +2,7 @@ import prisma from '../config/db.js';
 import redis from '../config/redis.js';
 import fs from 'fs';
 import { videoQueue } from '../queues/videoQueues.js';
-import { CACHE_KEYS, buildViewLockKey } from '../constants/cacheKeys.js';
+import { CACHE_KEYS, buildViewLockKey } from '../constants/cac.js';
 
 const VIDEO_LIST_CACHE_TTL_SECONDS = 300;
 const VIEW_LOCK_TTL_SECONDS = 10;
