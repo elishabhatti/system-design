@@ -82,13 +82,13 @@ export const listVideos = async () => {
       ],
     },
     include: {
-        user: { select: videoOwnerSelect },
-        _count: { select: { likes: true } },
-        videoQualities: {
-          select: { resolution: true, filepath: true },
-          orderBy: { resolution: "desc" }, // 720p, 480p, 360p
-        },
+      user: { select: videoOwnerSelect },
+      _count: { select: { likes: true } },
+      qualities: {
+        select: { resolution: true, filepath: true },
+        orderBy: { resolution: "desc" },
       },
+    },
     orderBy: { uploadedAt: "desc" },
   });
 
