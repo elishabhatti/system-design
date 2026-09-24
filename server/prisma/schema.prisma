@@ -123,14 +123,11 @@ model Video {
 model VideoQuality {
   id         String   @id @default(uuid())
   videoId    String
-  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  resolution String   // "720p", "480p", "360p"
+  resolution String
   filepath   String
   filesize   Int
-  createdAt  DateTime @default(now())
-
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   @@unique([videoId, resolution])
-  @@index([videoId])
 }
 
 model View {
