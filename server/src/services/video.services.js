@@ -74,14 +74,21 @@ export const listVideos = async () => {
   }
 
   const videos = await prisma.video.findMany({
-    include: {
-      user: { select: videoOwnerSelect },
-      _count: { select: { likes: true } },
-      videoQualities: {
-        select: { resolution: true, filepath: true },
-        orderBy: { resolution: "desc" }, // 720p, 480p, 360p
-      },
+    where: {
+      visibility: "public",
+      OR: [
+        { scheduledFor: null },
+        { scheduledFor: { lte: new Date() } },
+      ],
     },
+    include: {
+        user: { select: videoOwnerSelect },
+        _count: { select: { likes: true } },
+        videoQualities: {
+          select: { resolution: true, filepath: true },
+          orderBy: { resolution: "desc" }, // 720p, 480p, 360p
+        },
+      },
     orderBy: { uploadedAt: "desc" },
   });
 
