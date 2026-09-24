@@ -6,11 +6,7 @@ import fs from "fs";
 import util from "util";
 import { v2 as cloudinary } from "cloudinary";
 import { downloadToFile } from "../lib/downloadToFile.js";
-
-// Assumes cloudinary.config({...}) already ran somewhere at startup
-// (the same config your multer-storage-cloudinary upload middleware uses).
-// If it doesn't, uncomment and point at your actual config module:
-// import "../config/cloudinary.js";
+import "../config/cloudinary.js";
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
