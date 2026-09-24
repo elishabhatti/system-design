@@ -6,6 +6,11 @@ import fs from "fs";
 import util from "util";
 import { v2 as cloudinary } from "cloudinary";
 import { downloadToFile } from "../lib/downloadToFile.js";
+
+// Runs cloudinary.config({...}) as a side effect. The worker is a separate
+// process from the server (spawned independently via `concurrently`), so
+// it never inherits the config that runs when the server imports the
+// multer upload middleware — it needs this import for itself.
 import "../config/cloudinary.js";
 
 const connection = {
@@ -71,12 +76,21 @@ function safeRmDir(dirPath) {
 const videoWorker = new Worker(
   "videoQueue",
   async (job) => {
-    const { videoId, videoTitle, userId, senderInfo, filepath, filename } = job.data;
+    const { videoId, videoTitle, userId, senderInfo, filepath } = job.data;
     console.log(`[Worker] Starting transcoding for Job ID: ${job.id}, Video ID: ${videoId}`);
 
     const workDir = path.join(process.cwd(), "tmp", "transcode", videoId);
     fs.mkdirSync(workDir, { recursive: true });
-    const localSourcePath = path.join(workDir, `source-${filename}`);
+
+    // Build local temp filenames from videoId only — NOT from `filename`.
+    // With local multer storage, file.filename is a flat random string
+    // (e.g. "a1b2c3.mp4"), but multer-storage-cloudinary sets file.filename
+    // to the Cloudinary public_id, which includes a folder prefix
+    // ("videos_streaming_app/xyz") and no extension. Using that directly in
+    // a local path.join() makes Node treat the "/" as a real subdirectory
+    // that was never created — hence the ENOENT. videoId is always a flat
+    // uuid, so it's safe here regardless of storage backend.
+    const localSourcePath = path.join(workDir, `source-${videoId}.mp4`);
 
     try {
       // 1. Pull the Cloudinary source down to local disk for ffmpeg.
@@ -94,8 +108,7 @@ const videoWorker = new Worker(
       // kill the others.
       const successfulRenditions = [];
       for (const target of targets) {
-        const outputFilename = `${target.label}-${filename}`;
-        const outputPath = path.join(workDir, outputFilename);
+        const outputPath = path.join(workDir, `${target.label}-${videoId}.mp4`);
 
         try {
           await transcodeToResolution(localSourcePath, outputPath, target.height);
