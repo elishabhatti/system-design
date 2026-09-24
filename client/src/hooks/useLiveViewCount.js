@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { socket } from "../lib/socket";
+import { socket } from "../lib/sockets";
 
 // Joins the video's socket room, listens for live view_updated events,
 // and eases the displayed number toward the real value instead of jumping.

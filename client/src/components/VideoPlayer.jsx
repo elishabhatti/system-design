@@ -18,7 +18,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
-import { useHlsSource } from"../hooks/useHlsSource";
+import { useHlsSource } from "../hooks/useHlsSource";
 import { useResumePlayback } from "../hooks/useResumePlayback";
 import { usePlayerKeyboardShortcuts } from "../hooks/usePlayerKeyboardShortcuts";
 
@@ -35,6 +35,7 @@ function formatTime(sec) {
 
 export default function VideoPlayer({
   src,
+  qualities = [], // [{ label, src }] — manual progressive-MP4 renditions, if any
   videoId,
   isLive,
   poster,
@@ -66,17 +67,35 @@ export default function VideoPlayer({
   const [slowNetwork, setSlowNetwork] = useState(false);
   const [volumeFlash, setVolumeFlash] = useState(null);
   const [retryToken, setRetryToken] = useState(0);
+  const [manualQualityLabel, setManualQualityLabel] = useState(null);
 
   const hideTimer = useRef(null);
   const slowNetworkTimer = useRef(null);
+  const pendingResumeRef = useRef(null); // { time, wasPlaying } across a quality switch
+
+  const hasManualQualities = qualities.length > 1;
+
+  // When manual renditions exist, they decide what actually plays;
+  // `src` stays as the fallback (also what HLS setup below keys off when
+  // there are no manual renditions to choose from).
+  const resolvedSrc = hasManualQualities
+    ? qualities.find((q) => q.label === manualQualityLabel)?.src || qualities[0].src
+    : src;
 
   const { levels, currentLevel, changeQuality: changeQualityHls, fatalError, setFatalError } =
-    useHlsSource(videoRef, src, retryToken, {
+    useHlsSource(videoRef, resolvedSrc, retryToken, {
       onSetupStart: () => setActiveMenu(null),
     });
 
   const { resumePrompt, applyResume, dismissResume, saveProgress, clearProgress } =
-    useResumePlayback(videoRef, videoId, src);
+    useResumePlayback(videoRef, videoId, resolvedSrc);
+
+  const handleQualitySelect = (label) => {
+    const v = videoRef.current;
+    pendingResumeRef.current = { time: v?.currentTime || 0, wasPlaying: v && !v.paused };
+    setManualQualityLabel(label);
+    setActiveMenu(null);
+  };
 
   // Apply volume/mute/speed imperatively — these are JS properties on the
   // media element, not real HTML attributes, so JSX props alone never work.
@@ -92,7 +111,7 @@ export default function VideoPlayer({
     v.addEventListener("loadedmetadata", applySettings);
     return () => v.removeEventListener("loadedmetadata", applySettings);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, retryToken]);
+  }, [resolvedSrc, retryToken]);
 
   const changeQuality = (index) => {
     changeQualityHls(index);
@@ -258,6 +277,14 @@ export default function VideoPlayer({
     const onLoadedMeta = () => {
       setDuration(v.duration);
       setLoading(false);
+
+      // Restore playback position/state after a manual quality switch
+      // (the src just changed underneath the same video).
+      if (pendingResumeRef.current) {
+        v.currentTime = pendingResumeRef.current.time;
+        if (pendingResumeRef.current.wasPlaying) v.play();
+        pendingResumeRef.current = null;
+      }
     };
     const onProgress = () => {
       if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1));
@@ -307,7 +334,7 @@ export default function VideoPlayer({
       clearTimeout(slowNetworkTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, retryToken, handleTimeUpdate, onEnded]);
+  }, [resolvedSrc, retryToken, handleTimeUpdate, onEnded]);
 
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -487,12 +514,17 @@ export default function VideoPlayer({
                     <span className="font-mono text-white/50">{speed}x</span>
                   </button>
 
-                  {levels.length > 0 && (
+                  {hasManualQualities ? (
+                    <button onClick={() => setActiveMenu("quality")} className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200">
+                      <span>Quality</span>
+                      <span className="font-mono text-white/50">{manualQualityLabel || qualities[0]?.label}</span>
+                    </button>
+                  ) : levels.length > 0 ? (
                     <button onClick={() => setActiveMenu("quality")} className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200">
                       <span>Quality</span>
                       <span className="font-mono text-white/50">{currentLevel === -1 ? "Auto" : `${levels[currentLevel]?.height}p`}</span>
                     </button>
-                  )}
+                  ) : null}
                 </div>
               )}
 
@@ -510,7 +542,28 @@ export default function VideoPlayer({
                 </div>
               )}
 
-              {activeMenu === "quality" && (
+              {activeMenu === "quality" && hasManualQualities && (
+                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
+                  <button onClick={() => setActiveMenu("main")} className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]">
+                    ← BACK
+                  </button>
+                  {qualities.map((q) => {
+                    const isActive = (manualQualityLabel || qualities[0]?.label) === q.label;
+                    return (
+                      <button
+                        key={q.label}
+                        onClick={() => handleQualitySelect(q.label)}
+                        className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${isActive ? "text-violet-400 font-bold" : "text-zinc-300"}`}
+                      >
+                        <span>{q.label}</span>
+                        {isActive && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {activeMenu === "quality" && !hasManualQualities && (
                 <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
                   <button onClick={() => setActiveMenu("main")} className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]">
                     ← BACK

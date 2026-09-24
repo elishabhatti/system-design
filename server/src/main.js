@@ -1,4 +1,4 @@
-import { server, app } from "./app.js"; // app bhi import kar lo agar zaroorat ho
+import { server, app } from "./app.js"; 
 
 async function bootstrap() {
     const PORT = Number(process.env.PORT) || 3001;

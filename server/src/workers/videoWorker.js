@@ -1,13 +1,20 @@
 import { Worker } from "bullmq";
-import prisma from '../config/db.js';
-import ffmpeg from 'fluent-ffmpeg';
-import path from 'path';
-import fs from 'fs';
-import util from 'util';
+import prisma from "../config/db.js";
+import ffmpeg from "fluent-ffmpeg";
+import path from "path";
+import fs from "fs";
+import util from "util";
+import { v2 as cloudinary } from "cloudinary";
+import { downloadToFile } from "../lib/downloadToFile.js";
+
+// Assumes cloudinary.config({...}) already ran somewhere at startup
+// (the same config your multer-storage-cloudinary upload middleware uses).
+// If it doesn't, uncomment and point at your actual config module:
+// import "../config/cloudinary.js";
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT),
+  port: parseInt(process.env.REDIS_PORT || "6379", 10),
 };
 
 // Target renditions, tallest first. We only generate ones <= source height,
@@ -39,50 +46,79 @@ function transcodeToResolution(inputPath, outputPath, height) {
   });
 }
 
+// Renditions are re-uploaded to Cloudinary — local disk is only ever a
+// scratch space for ffmpeg, never the final storage location. Uses
+// upload_large (chunked) since transcoded files can still be sizeable.
+function uploadToCloudinary(localPath, publicId) {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_large(
+      localPath,
+      {
+        resource_type: "video",
+        public_id: publicId,
+        folder: "videos_streaming_app/renditions",
+      },
+      (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      }
+    );
+  });
+}
+
+function safeRmDir(dirPath) {
+  fs.rm(dirPath, { recursive: true, force: true }, (err) => {
+    if (err) console.error(`[Worker] Failed to clean up ${dirPath}:`, err.message);
+  });
+}
+
 const videoWorker = new Worker(
   "videoQueue",
   async (job) => {
     const { videoId, videoTitle, userId, senderInfo, filepath, filename } = job.data;
     console.log(`[Worker] Starting transcoding for Job ID: ${job.id}, Video ID: ${videoId}`);
 
-    try {
-      // 1. Find out what resolutions actually make sense for this source.
-      const sourceHeight = await getSourceHeight(filepath);
-      const targets = RESOLUTIONS.filter((r) => r.height <= sourceHeight);
+    const workDir = path.join(process.cwd(), "tmp", "transcode", videoId);
+    fs.mkdirSync(workDir, { recursive: true });
+    const localSourcePath = path.join(workDir, `source-${filename}`);
 
-      // Guard: if source is smaller than our smallest target (e.g. a 240p
-      // upload), still produce at least one rendition at the source height.
+    try {
+      // 1. Pull the Cloudinary source down to local disk for ffmpeg.
+      await downloadToFile(filepath, localSourcePath);
+
+      // 2. Figure out which resolutions make sense for this source.
+      const sourceHeight = await getSourceHeight(localSourcePath);
+      const targets = RESOLUTIONS.filter((r) => r.height <= sourceHeight);
       if (targets.length === 0) {
         targets.push({ label: `${sourceHeight}p`, height: sourceHeight });
       }
 
-      const outputDir = path.join(process.cwd(), "uploads", "processed", videoId);
-      if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-      }
-
-      // 2. Transcode sequentially — parallel ffmpeg processes on one job
-      // just fight each other for CPU, they don't finish faster.
+      // 3. Transcode sequentially, then re-upload each rendition to
+      // Cloudinary and record its URL. One resolution failing shouldn't
+      // kill the others.
       const successfulRenditions = [];
       for (const target of targets) {
         const outputFilename = `${target.label}-${filename}`;
-        const outputPath = path.join(outputDir, outputFilename);
+        const outputPath = path.join(workDir, outputFilename);
 
         try {
-          await transcodeToResolution(filepath, outputPath, target.height);
-          const { size } = fs.statSync(outputPath);
+          await transcodeToResolution(localSourcePath, outputPath, target.height);
+
+          const publicId = `${videoId}/${target.label}`;
+          const uploadResult = await uploadToCloudinary(outputPath, publicId);
+
           successfulRenditions.push({
             resolution: target.label,
-            filepath: outputPath,
-            filesize: size,
+            filepath: uploadResult.secure_url,
+            filesize: uploadResult.bytes,
           });
+
           await job.updateProgress(
             Math.round((successfulRenditions.length / targets.length) * 100)
           );
-          console.log(`[FFmpeg] ${target.label} done for video ${videoId}`);
+          console.log(`[Worker] ${target.label} transcoded + uploaded for video ${videoId}`);
         } catch (err) {
-          // One resolution failing shouldn't kill the others.
-          console.error(`[FFmpeg Error] ${target.label} failed for video ${videoId}:`, err.message);
+          console.error(`[Worker Error] ${target.label} failed for video ${videoId}:`, err.message);
         }
       }
 
@@ -90,8 +126,9 @@ const videoWorker = new Worker(
         throw new Error("All resolution transcodes failed.");
       }
 
-      // 3. Persist renditions. Requires a VideoQuality model — see schema
-      // note below. This replaces relying on a single `filepath` column.
+      // 4. Persist renditions (requires a VideoQuality model in schema.prisma:
+      // videoId, resolution, filepath, filesize — filepath here is a
+      // Cloudinary secure_url, not a local path).
       await prisma.videoQuality.createMany({
         data: successfulRenditions.map((r) => ({
           videoId,
@@ -107,7 +144,7 @@ const videoWorker = new Worker(
         data: { isProcessed: true },
       });
 
-      // 4. Notify subscribers (unchanged from your version).
+      // 5. Notify subscribers.
       const subscriptions = await prisma.subscription.findMany({
         where: { channelId: userId },
         select: { subscriberId: true },
@@ -121,10 +158,7 @@ const videoWorker = new Worker(
           message: `uploaded a new video: "${videoTitle}"`,
         }));
 
-        await prisma.notification.createMany({
-          data: notificationData,
-          skipDuplicates: true,
-        });
+        await prisma.notification.createMany({ data: notificationData, skipDuplicates: true });
 
         if (global.io) {
           subscriptions.forEach((sub) => {
@@ -145,6 +179,10 @@ const videoWorker = new Worker(
     } catch (error) {
       console.error(`[Worker Error] Job ${job.id} failed:`, error.message);
       throw error;
+    } finally {
+      // Local disk was only ever scratch space — always clean it up,
+      // success or failure, so it never silently accumulates.
+      safeRmDir(workDir);
     }
   },
   { connection, concurrency: 1 }

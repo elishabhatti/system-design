@@ -9,9 +9,12 @@ export function useResumePlayback(videoRef, videoId, src) {
   const lastSavedAtRef = useRef(0);
   const resumeKey = videoId ? `video-resume:${videoId}` : null;
 
+  // Reset on videoId change ONLY, not on every `src` change — a quality
+  // switch changes `src` while staying on the same video, and shouldn't
+  // re-trigger the "resume from X?" prompt.
   useEffect(() => {
     resumeAppliedRef.current = false;
-  }, [src]);
+  }, [videoId]);
 
   useEffect(() => {
     const v = videoRef.current;

@@ -24,10 +24,11 @@ import { useVideoLikes } from "../hooks/useVideoLikes";
 import { useChannelSubscription } from "../hooks/useChannelSubscription";
 import { useVideoComments } from "../hooks/useVideoComment";
 import { useLiveViewCount } from "../hooks/useLiveViewCount";
-import { useViewIncrementOnWatch } from "../hooks/useViewIncmrentOnWatch";
+import { useViewIncrementOnWatch } from "../hooks/useViewIncrementOnWatch";
 import { useAutoplayNext } from "../hooks/useAutoplayNext";
 import { useShareModal, formatShareTime } from "../hooks/useShareModal";
 import { useToast } from "../hooks/useToast";
+import { useQualityOptions } from "../hooks/useQualityOptions";
 
 export default function VideoDetail() {
   const { id } = useParams();
@@ -69,6 +70,7 @@ export default function VideoDetail() {
   } = useVideoComments(currentVideo?.id, currentUser);
 
   const displayedViews = useLiveViewCount(currentVideo, setCurrentVideo);
+  const qualityOptions = useQualityOptions(currentVideo);
   const handleTimeUpdateRaw = useViewIncrementOnWatch(currentVideo?.id, setCurrentVideo);
   const handleTimeUpdate = (e) => handleTimeUpdateRaw(e, currentTimeRef);
 
@@ -170,6 +172,7 @@ export default function VideoDetail() {
               <VideoPlayer
                 key={currentVideo.id}
                 src={currentVideo.filepath}
+                qualities={qualityOptions}
                 videoId={currentVideo.id}
                 isLive={currentVideo.isLive}
                 handleTimeUpdate={handleTimeUpdate}
