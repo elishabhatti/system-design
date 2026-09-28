@@ -1,22 +1,22 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost',
-        changeOrigin: true,
-      },
-      '/socket.io': {
-        target: 'http://localhost',
+      "/socket.io": {
+        target: "http://localhost:3001", // backend ka wahi port jo tum chala rahe ho
         ws: true,
         changeOrigin: true,
-      }
-    }
-  }
-})
+        configure: (proxy) => {
+          proxy.on("error", (err) => {
+            if (err.code === "ECONNRESET" || err.code === "EPIPE") return; // restart par normal
+            console.error("[proxy error]", err);
+          });
+        },
+      },
+    },
+  },
+});
