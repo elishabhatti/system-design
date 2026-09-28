@@ -7,21 +7,37 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ---------- Enums ----------
+// @map purani DB values (lowercase) se match karta hai, data safe rehta hai
+enum Visibility {
+  PRIVATE  @map("private")
+  PUBLIC   @map("public")
+  UNLISTED @map("unlisted")
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+// ---------- Models ----------
 model User {
-  id            String   @id @default(uuid())
-  channelName   String   
-  email         String   @unique
-  password      String   
-  avatarUrl     String?  
-  bio           String?  @db.Text
-  bannerUrl     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  videos        Video[]  
-  views         View[]   
-  likes         Like[]
-  comments      Comment[]
+  id          String   @id @default(uuid())
+  channelName String   @unique
+  email       String   @unique
+  password    String // sirf hashed (bcrypt/argon2) store karo
+  avatarUrl   String?
+  bannerUrl   String?
+  bio         String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  videos   Video[]
+  views    View[]
+  likes    Like[]
+  comments Comment[]
 
   subscribers       Subscription[] @relation("UserSubscriptions")
   subscriptions     Subscription[] @relation("UserFollowing")
@@ -29,19 +45,61 @@ model User {
   sentNotifications Notification[] @relation("NotificationSender")
 }
 
-model Subscription {
-  id           String   @id @default(uuid())
-  subscriberId String   
-  channelId    String   
+model Video {
+  id            String      @id @default(uuid())
+  title         String
+  description   String?     @db.Text
+  filename      String
+  filepath      String
+  filesize      BigInt
+  mimetype      String
+  thumbnailUrl  String?
+  category      String?     @default("General")
+  tags          String?
+  isMadeForKids Boolean     @default(false)
+  ageRestricted Boolean     @default(false)
+  visibility    Visibility  @default(PRIVATE)
+  status        VideoStatus @default(PROCESSING)
+  isProcessed   Boolean     @default(false) // DEPRECATED: status use karo, baad mein hata dena
+  scheduledFor  DateTime?
+  views         Int         @default(0)
+  uploadedAt    DateTime    @default(now())
 
-  subscriber   User     @relation("UserFollowing", fields: [subscriberId], references: [id], onDelete: Cascade)
-  channel      User     @relation("UserSubscriptions", fields: [channelId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime @default(now())
+  viewRecords View[]
+  likes       Like[]
+  comments    Comment[]
+  qualities   VideoQuality[]
 
-  @@unique([subscriberId, channelId]) 
-  @@index([subscriberId])
-  @@index([channelId])
+  @@index([userId, uploadedAt]) // channel page
+  @@index([visibility, status, uploadedAt]) // public home feed
+  @@index([category, uploadedAt]) // category feed
+}
+
+model VideoQuality {
+  id         String @id @default(uuid())
+  videoId    String
+  resolution String
+  filepath   String
+  filesize   BigInt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, resolution]) // videoId lookups bhi isi se cover
+}
+
+model View {
+  id      String @id @default(uuid())
+  userId  String
+  videoId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([videoId])
 }
 
 model Like {
@@ -50,12 +108,11 @@ model Like {
   videoId   String
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@unique([userId, videoId])
-  @@index([videoId]) 
-  @@index([userId])
+  @@index([videoId])
 }
 
 model Comment {
@@ -66,18 +123,31 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
-  @@index([videoId]) 
+  @@index([videoId, createdAt]) // video ke comments, latest first
   @@index([userId])
+}
+
+model Subscription {
+  id           String   @id @default(uuid())
+  subscriberId String
+  channelId    String
+  createdAt    DateTime @default(now())
+
+  subscriber User @relation("UserFollowing", fields: [subscriberId], references: [id], onDelete: Cascade)
+  channel    User @relation("UserSubscriptions", fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, channelId])
+  @@index([channelId])
 }
 
 model Notification {
   id        String   @id @default(uuid())
   userId    String
   senderId  String
-  type      String
+  type      String // phase 2: enum banao
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -85,59 +155,6 @@ model Notification {
   user   User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
   sender User @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([read])
-}
-
-model Video {
-  id            String    @id @default(uuid())
-  title         String
-  description   String?   @db.Text
-  filename      String
-  filepath      String
-  filesize      Int
-  mimetype      String
-  thumbnailUrl  String?
-  category      String?   @default("General")
-  tags          String?   
-  isMadeForKids Boolean   @default(false)
-  ageRestricted Boolean   @default(false)
-  visibility    String    @default("private") 
-  scheduledFor  DateTime?
-  views         Int       @default(0) 
-  uploadedAt    DateTime  @default(now())
-  isProcessed   Boolean   @default(false)
-
-  userId        String    
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  viewsRelation View[]    
-  likes         Like[]
-  comments      Comment[]
-  qualities     VideoQuality[]
-
-  @@index([userId])
-  @@index([category])
-  @@index([uploadedAt])
-}
-
-model VideoQuality {
-  id         String   @id @default(uuid())
-  videoId    String
-  resolution String
-  filepath   String
-  filesize   Int
-  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  @@unique([videoId, resolution])
-}
-
-model View {
-  id      String @id @default(uuid())
-  userId  String
-  videoId String
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, videoId])
-  @@index([videoId])
-  @@index([userId])
+  @@index([userId, read, createdAt]) // unread notifications, latest first
+  @@index([senderId]) // FK column, cascade delete ke liye
 }
