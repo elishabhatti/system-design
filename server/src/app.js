@@ -19,6 +19,9 @@ import notificationRoutes from "./routes/notification.routes.js";
 // ---------- Config ----------
 const isProd = process.env.NODE_ENV === "production";
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+BigInt.prototype.toJSON = function () {
+  return Number(this);
+};
 
 // TODO: apne auth ke hisaab se badlo
 const AUTH_COOKIE_NAME = "token"; // tumhari login cookie ka naam
