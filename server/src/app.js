@@ -2,22 +2,29 @@ import express from "express";
 import morgan from "morgan";
 import cors from "cors";
 import path from "path";
-import cookieParser from "cookie-parser";
-import cookie from "cookie"; // npm i cookie
-import jwt from "jsonwebtoken"; // apna auth jo bhi use karte ho, wahi lagao
 import http from "http";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import cookie from "cookie";
+import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
-import helmet from "helmet";
 
 import videoRoutes from "./routes/video.routes.js";
 import authRoutes from "./routes/user.routes.js";
 import commentRoutes from "./routes/comments.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 
+// ---------- Config ----------
 const isProd = process.env.NODE_ENV === "production";
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+
+// TODO: apne auth ke hisaab se badlo
+const AUTH_COOKIE_NAME = "token"; // tumhari login cookie ka naam
+const getUserIdFromPayload = (payload) => payload.id; // JWT payload ki field
+
+const SAFE_ID = /^[a-zA-Z0-9_-]{1,64}$/; // room ids ki validation
 
 const app = express();
 app.set("trust proxy", 1);
@@ -31,7 +38,7 @@ const redisOptions = {
 const pubClient = new Redis(redisOptions);
 const subClient = pubClient.duplicate();
 
-// error handler ke bina ioredis sirf "Unhandled error event" print karta hai
+// error handler ke bina ioredis "Unhandled error event" spam karta hai
 pubClient.on("error", (e) => console.error("Redis pub error:", e.message));
 subClient.on("error", (e) => console.error("Redis sub error:", e.message));
 
@@ -50,10 +57,14 @@ app.set("io", io);
 io.use((socket, next) => {
   try {
     const cookies = cookie.parse(socket.handshake.headers.cookie || "");
-    const token = cookies.token; // <-- apni cookie ka naam
+    const token = cookies[AUTH_COOKIE_NAME] || socket.handshake.auth?.token;
     if (!token) return next(new Error("Unauthorized"));
+
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    socket.data.userId = payload.id; // <-- apne payload ki field
+    const userId = getUserIdFromPayload(payload);
+    if (!userId) return next(new Error("Unauthorized"));
+
+    socket.data.userId = String(userId);
     next();
   } catch {
     next(new Error("Unauthorized"));
@@ -61,25 +72,27 @@ io.use((socket, next) => {
 });
 
 io.on("connection", (socket) => {
-  // Server khud user ke private room mein daalta hai
+  // Server khud user ko uske private room mein daalta hai
   socket.join(socket.data.userId);
 
   socket.on("join_video_room", (videoId) => {
-    if (typeof videoId === "string" && videoId.length <= 64) {
+    if (typeof videoId === "string" && SAFE_ID.test(videoId)) {
       socket.join(`video_${videoId}`);
     }
   });
 
   socket.on("leave_video_room", (videoId) => {
-    if (typeof videoId === "string") socket.leave(`video_${videoId}`);
+    if (typeof videoId === "string" && SAFE_ID.test(videoId)) {
+      socket.leave(`video_${videoId}`);
+    }
   });
 });
 
 // ---------- Express middleware ----------
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(morgan(isProd ? "combined" : "dev"));
-app.use(cookieParser());
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ limit: "1mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -95,8 +108,10 @@ app.use("/api/videos", videoRoutes);
 // ---------- 404 + error handler (routes ke BAAD) ----------
 app.use((req, res) => res.status(404).json({ message: "Not found" }));
 
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err);
+  if (res.headersSent) return next(err);
   res.status(err.status || 500).json({
     message: isProd ? "Internal server error" : err.message,
   });
