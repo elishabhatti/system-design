@@ -35,7 +35,7 @@ function formatTime(sec) {
 
 export default function VideoPlayer({
   src,
-  qualities = [], // [{ label, src }] — manual progressive-MP4 renditions, if any
+  qualities = [], // [{ label, src }] — manual progressive-MP4 renditions (legacy videos without HLS)
   videoId,
   isLive,
   poster,
@@ -70,6 +70,7 @@ export default function VideoPlayer({
   const [manualQualityLabel, setManualQualityLabel] = useState(null);
 
   const hideTimer = useRef(null);
+  const volFlashTimer = useRef(null); // separate from hideTimer (hideTimer holds a number id)
   const slowNetworkTimer = useRef(null);
   const pendingResumeRef = useRef(null); // { time, wasPlaying } across a quality switch
 
@@ -182,9 +183,12 @@ export default function VideoPlayer({
     }
     setMuted(clamped === 0);
     setVolumeFlash(clamped);
-    clearTimeout(hideTimer.current?._volFlash);
-    hideTimer.current = hideTimer.current || {};
-    hideTimer.current._volFlash = setTimeout(() => setVolumeFlash(null), 700);
+    // FIX: pehle yahan hideTimer.current par property set ki ja rahi thi
+    // (._volFlash), lekin hideTimer.current ek number (timeout id) hota hai.
+    // ES modules strict mode mein chalte hain, to primitive par property set
+    // karna TypeError throw karta tha. Ab alag ref use hota hai.
+    clearTimeout(volFlashTimer.current);
+    volFlashTimer.current = setTimeout(() => setVolumeFlash(null), 700);
   };
 
   const handleVolumeChange = (e) => setVolumeSafely(parseFloat(e.target.value));
@@ -245,6 +249,15 @@ export default function VideoPlayer({
     setLoading(true);
     setRetryToken((n) => n + 1);
   };
+
+  // Timers cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(hideTimer.current);
+      clearTimeout(volFlashTimer.current);
+      clearTimeout(slowNetworkTimer.current);
+    };
+  }, []);
 
   usePlayerKeyboardShortcuts({
     videoRef,
