@@ -61,6 +61,7 @@ model Video {
   visibility    Visibility  @default(PRIVATE)
   status        VideoStatus @default(PROCESSING)
   isProcessed   Boolean     @default(false) // DEPRECATED: status use karo, baad mein hata dena
+  hlsPath       String?
   scheduledFor  DateTime?
   views         Int         @default(0)
   uploadedAt    DateTime    @default(now())
