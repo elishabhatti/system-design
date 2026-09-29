@@ -1,11 +1,12 @@
 import { Worker } from "bullmq";
 import prisma from "../config/db.js";
+import redis from "../config/redis.js";
 import ffmpeg from "fluent-ffmpeg";
 import path from "path";
 import fs from "fs";
 import util from "util";
-import { v2 as cloudinary } from "cloudinary";
 import { downloadToFile } from "../lib/downloadToFile.js";
+import { CACHE_KEYS } from "../constants/cache.keys.js";
 
 // Runs cloudinary.config({...}) as a side effect. The worker is a separate
 // process from the server (spawned independently via `concurrently`), so
@@ -18,53 +19,82 @@ const connection = {
   port: parseInt(process.env.REDIS_PORT || "6379", 10),
 };
 
-// Target renditions, tallest first. We only generate ones <= source height,
-// so a 480p upload never gets a fake upscaled "720p" file.
-const RESOLUTIONS = [
-  { label: "720p", height: 720 },
-  { label: "480p", height: 480 },
-  { label: "360p", height: 360 },
+// HLS output lives here: public/hls/<videoId>/master.m3u8
+// The Express server must serve this SAME folder (see app.use("/hls", ...)).
+// Both processes must start from the backend root so process.cwd() matches.
+const HLS_ROOT = path.join(process.cwd(), "public", "hls");
+
+// Adaptive bitrate ladder, tallest first. Only renditions <= source height
+// are generated, so a 480p upload never gets a fake upscaled "720p".
+// bitrate is in kbps (video only; audio adds ~128k).
+const LADDER = [
+  { label: "1080p", height: 1080, bitrate: 5000 },
+  { label: "720p", height: 720, bitrate: 2800 },
+  { label: "480p", height: 480, bitrate: 1400 },
+  { label: "360p", height: 360, bitrate: 800 },
+  { label: "240p", height: 240, bitrate: 400 },
 ];
+
+const AUDIO_BITRATE_KBPS = 128;
+const SEGMENT_SECONDS = 4;
 
 const ffprobeAsync = util.promisify(ffmpeg.ffprobe);
 
-async function getSourceHeight(filepath) {
+async function getSourceInfo(filepath) {
   const metadata = await ffprobeAsync(filepath);
   const videoStream = metadata.streams.find((s) => s.codec_type === "video");
-  return videoStream?.height || 0;
+  return {
+    width: videoStream?.width || 0,
+    height: videoStream?.height || 0,
+  };
 }
 
-function transcodeToResolution(inputPath, outputPath, height) {
+// Transcodes the source into ONE HLS rendition:
+//   <outDir>/index.m3u8 + <outDir>/seg_000.ts, seg_001.ts, ...
+function transcodeToHls(inputPath, outDir, { height, bitrate }) {
+  fs.mkdirSync(outDir, { recursive: true });
+
   return new Promise((resolve, reject) => {
     ffmpeg(inputPath)
-      .output(outputPath)
       .videoCodec("libx264")
       .audioCodec("aac")
-      .size(`?x${height}`)
+      .videoFilters(`scale=-2:${height}`) // -2 keeps aspect ratio with an even width
+      .outputOptions([
+        "-preset veryfast",
+        "-profile:v main",
+        "-crf 23",
+        `-maxrate ${bitrate}k`,
+        `-bufsize ${bitrate * 2}k`,
+        // Keyframes at the same timestamps in every rendition, otherwise
+        // the player can't switch cleanly between qualities at a segment edge.
+        `-force_key_frames expr:gte(t,n_forced*${SEGMENT_SECONDS})`,
+        "-sc_threshold 0",
+        `-hls_time ${SEGMENT_SECONDS}`,
+        "-hls_playlist_type vod",
+        `-hls_segment_filename ${path.join(outDir, "seg_%03d.ts")}`,
+      ])
+      .output(path.join(outDir, "index.m3u8"))
       .on("end", resolve)
       .on("error", reject)
       .run();
   });
 }
 
-// Renditions are re-uploaded to Cloudinary — local disk is only ever a
-// scratch space for ffmpeg, never the final storage location. Uses
-// upload_large (chunked) since transcoded files can still be sizeable.
-function uploadToCloudinary(localPath, publicId) {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_large(
-      localPath,
-      {
-        resource_type: "video",
-        public_id: publicId,
-        folder: "videos_streaming_app/renditions",
-      },
-      (err, result) => {
-        if (err) reject(err);
-        else resolve(result);
-      }
+// master.m3u8 = the menu of qualities. hls.js reads this, then picks a
+// rendition per segment based on measured download speed.
+function writeMasterPlaylist(videoDir, renditions, aspect) {
+  const lines = ["#EXTM3U", "#EXT-X-VERSION:3"];
+
+  for (const r of renditions) {
+    const width = Math.round((r.height * aspect) / 2) * 2;
+    const bandwidth = (r.bitrate + AUDIO_BITRATE_KBPS) * 1000;
+    lines.push(
+      `#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${r.height}`,
+      `${r.label}/index.m3u8`
     );
-  });
+  }
+
+  fs.writeFileSync(path.join(videoDir, "master.m3u8"), lines.join("\n") + "\n");
 }
 
 function safeRmDir(dirPath) {
@@ -79,79 +109,70 @@ const videoWorker = new Worker(
     const { videoId, videoTitle, userId, senderInfo, filepath } = job.data;
     console.log(`[Worker] Starting transcoding for Job ID: ${job.id}, Video ID: ${videoId}`);
 
+    // Scratch space for the downloaded source (deleted in `finally`).
     const workDir = path.join(process.cwd(), "tmp", "transcode", videoId);
     fs.mkdirSync(workDir, { recursive: true });
 
     // Build local temp filenames from videoId only — NOT from `filename`.
-    // With local multer storage, file.filename is a flat random string
-    // (e.g. "a1b2c3.mp4"), but multer-storage-cloudinary sets file.filename
-    // to the Cloudinary public_id, which includes a folder prefix
-    // ("videos_streaming_app/xyz") and no extension. Using that directly in
-    // a local path.join() makes Node treat the "/" as a real subdirectory
-    // that was never created — hence the ENOENT. videoId is always a flat
-    // uuid, so it's safe here regardless of storage backend.
+    // multer-storage-cloudinary sets file.filename to the Cloudinary
+    // public_id, which contains "/" and no extension. videoId is a flat
+    // uuid, so it's safe as a local filename.
     const localSourcePath = path.join(workDir, `source-${videoId}.mp4`);
+
+    // Final HLS output (NOT deleted — this is what gets streamed).
+    const videoDir = path.join(HLS_ROOT, videoId);
 
     try {
       // 1. Pull the Cloudinary source down to local disk for ffmpeg.
       await downloadToFile(filepath, localSourcePath);
 
-      // 2. Figure out which resolutions make sense for this source.
-      const sourceHeight = await getSourceHeight(localSourcePath);
-      const targets = RESOLUTIONS.filter((r) => r.height <= sourceHeight);
+      // 2. Decide which renditions make sense for this source.
+      const { width: srcW, height: srcH } = await getSourceInfo(localSourcePath);
+      if (!srcH) throw new Error("Could not read source video height.");
+
+      const targets = LADDER.filter((r) => r.height <= srcH);
       if (targets.length === 0) {
-        targets.push({ label: `${sourceHeight}p`, height: sourceHeight });
+        // Source is smaller than our smallest rung: keep it as-is.
+        targets.push({ label: `${srcH}p`, height: srcH, bitrate: 400 });
       }
 
-      // 3. Transcode sequentially, then re-upload each rendition to
-      // Cloudinary and record its URL. One resolution failing shouldn't
-      // kill the others.
-      const successfulRenditions = [];
+      // 3. Transcode each rendition to HLS, sequentially.
+      // One rendition failing shouldn't kill the others.
+      const successful = [];
       for (const target of targets) {
-        const outputPath = path.join(workDir, `${target.label}-${videoId}.mp4`);
-
         try {
-          await transcodeToResolution(localSourcePath, outputPath, target.height);
+          await transcodeToHls(localSourcePath, path.join(videoDir, target.label), target);
+          successful.push(target);
 
-          const publicId = `${videoId}/${target.label}`;
-          const uploadResult = await uploadToCloudinary(outputPath, publicId);
-
-          successfulRenditions.push({
-            resolution: target.label,
-            filepath: uploadResult.secure_url,
-            filesize: uploadResult.bytes,
-          });
-
-          await job.updateProgress(
-            Math.round((successfulRenditions.length / targets.length) * 100)
-          );
-          console.log(`[Worker] ${target.label} transcoded + uploaded for video ${videoId}`);
+          await job.updateProgress(Math.round((successful.length / targets.length) * 100));
+          console.log(`[Worker] ${target.label} HLS ready for video ${videoId}`);
         } catch (err) {
           console.error(`[Worker Error] ${target.label} failed for video ${videoId}:`, err.message);
         }
       }
 
-      if (successfulRenditions.length === 0) {
+      if (successful.length === 0) {
         throw new Error("All resolution transcodes failed.");
       }
 
-      // 4. Persist renditions (requires a VideoQuality model in schema.prisma:
-      // videoId, resolution, filepath, filesize — filepath here is a
-      // Cloudinary secure_url, not a local path).
-      await prisma.videoQuality.createMany({
-        data: successfulRenditions.map((r) => ({
-          videoId,
-          resolution: r.resolution,
-          filepath: r.filepath,
-          filesize: r.filesize,
-        })),
-        skipDuplicates: true,
-      });
+      // 4. Write the master playlist and mark the video as processed.
+      writeMasterPlaylist(videoDir, successful, srcW / srcH);
 
       await prisma.video.update({
         where: { id: videoId },
-        data: { isProcessed: true },
+        data: {
+          isProcessed: true,
+          hlsPath: `/hls/${videoId}/master.m3u8`,
+        },
       });
+
+      // The worker is a separate process, so the API's cached video list
+      // has no idea this video just got renditions. Invalidate it here.
+      try {
+        await redis.del(CACHE_KEYS.ALL_VIDEOS);
+      } catch (err) {
+        console.error("[Worker] Redis invalidate failed:", err.message);
+      }
 
       // 5. Notify subscribers.
       const subscriptions = await prisma.subscription.findMany({
@@ -182,15 +203,14 @@ const videoWorker = new Worker(
       }
 
       console.log(
-        `[Worker] Job ${job.id} finished. Renditions: ${successfulRenditions.map((r) => r.resolution).join(", ")}`
+        `[Worker] Job ${job.id} finished. Renditions: ${successful.map((r) => r.label).join(", ")}`
       );
-      return { status: "success", renditions: successfulRenditions.map((r) => r.resolution) };
+      return { status: "success", renditions: successful.map((r) => r.label) };
     } catch (error) {
       console.error(`[Worker Error] Job ${job.id} failed:`, error.message);
       throw error;
     } finally {
-      // Local disk was only ever scratch space — always clean it up,
-      // success or failure, so it never silently accumulates.
+      // Only the scratch dir is cleaned up. The HLS output stays.
       safeRmDir(workDir);
     }
   },
