@@ -30,6 +30,14 @@ import { useShareModal, formatShareTime } from "../hooks/useShareModal";
 import { useToast } from "../hooks/useToast";
 import { useQualityOptions } from "../hooks/useQualityOptions";
 
+// Backend origin: HLS playlists/segments backend se serve hote hain.
+// Vite: VITE_API_URL | CRA use kar rahe ho to process.env.REACT_APP_API_URL likho.
+const API_ORIGIN = import.meta.env.VITE_API_URL || "http://localhost/";
+
+// HLS ready ho to master.m3u8 (adaptive), warna original MP4 (fallback).
+const getPlaybackSrc = (video) =>
+  video?.hlsPath ? `${API_ORIGIN}${video.hlsPath}` : video?.filepath;
+
 export default function VideoDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -171,8 +179,8 @@ export default function VideoDetail() {
             <div className="relative aspect-video bg-black flex items-center justify-center">
               <VideoPlayer
                 key={currentVideo.id}
-                src={currentVideo.filepath}
-                qualities={qualityOptions}
+                src={getPlaybackSrc(currentVideo)}
+                qualities={currentVideo.hlsPath ? [] : qualityOptions}
                 videoId={currentVideo.id}
                 isLive={currentVideo.isLive}
                 handleTimeUpdate={handleTimeUpdate}
