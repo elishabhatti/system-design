@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import { v2 as cloudinary } from "cloudinary";
 import prisma from "../config/db.js";
 import redis from "../config/redis.js";
 import ffmpeg from "fluent-ffmpeg";
@@ -9,9 +10,7 @@ import { downloadToFile } from "../lib/downloadToFile.js";
 import { CACHE_KEYS } from "../constants/cache.keys.js";
 
 // Runs cloudinary.config({...}) as a side effect. The worker is a separate
-// process from the server (spawned independently via `concurrently`), so
-// it never inherits the config that runs when the server imports the
-// multer upload middleware — it needs this import for itself.
+// process from the server, so it needs this import for itself.
 import "../config/cloudinary.js";
 
 const connection = {
@@ -19,20 +18,22 @@ const connection = {
   port: parseInt(process.env.REDIS_PORT || "6379", 10),
 };
 
-// HLS output lives here: public/hls/<videoId>/master.m3u8
-// The Express server must serve this SAME folder (see app.use("/hls", ...)).
-// Both processes must start from the backend root so process.cwd() matches.
+// HLS output: public/hls/<videoId>/master.m3u8
+// Express must serve this SAME folder (app.use("/hls", ...)).
 const HLS_ROOT = path.join(process.cwd(), "public", "hls");
+const TMP_ROOT = path.join(process.cwd(), "tmp", "transcode");
 
-// Adaptive bitrate ladder, tallest first. Only renditions <= source height
-// are generated, so a 480p upload never gets a fake upscaled "720p".
-// bitrate is in kbps (video only; audio adds ~128k).
+// Ladder is LOWEST FIRST on purpose:
+//  1. the smallest rendition finishes in seconds -> video is playable almost
+//     immediately (we publish after the first rendition, not after all five)
+//  2. master.m3u8 lists the lowest rendition first, so players (hls.js /
+//     Safari) start on it and ramp up instead of starting at 1080p and stalling.
 const LADDER = [
-  { label: "1080p", height: 1080, bitrate: 5000 },
-  { label: "720p", height: 720, bitrate: 2800 },
-  { label: "480p", height: 480, bitrate: 1400 },
-  { label: "360p", height: 360, bitrate: 800 },
   { label: "240p", height: 240, bitrate: 400 },
+  { label: "360p", height: 360, bitrate: 800 },
+  { label: "480p", height: 480, bitrate: 1400 },
+  { label: "720p", height: 720, bitrate: 2800 },
+  { label: "1080p", height: 1080, bitrate: 5000 },
 ];
 
 const AUDIO_BITRATE_KBPS = 128;
@@ -49,8 +50,6 @@ async function getSourceInfo(filepath) {
   };
 }
 
-// Transcodes the source into ONE HLS rendition:
-//   <outDir>/index.m3u8 + <outDir>/seg_000.ts, seg_001.ts, ...
 function transcodeToHls(inputPath, outDir, { height, bitrate }) {
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -58,19 +57,22 @@ function transcodeToHls(inputPath, outDir, { height, bitrate }) {
     ffmpeg(inputPath)
       .videoCodec("libx264")
       .audioCodec("aac")
-      .videoFilters(`scale=-2:${height}`) // -2 keeps aspect ratio with an even width
+      .videoFilters(`scale=-2:${height}`)
       .outputOptions([
         "-preset veryfast",
         "-profile:v main",
+        "-pix_fmt yuv420p", // Safari / older devices need this
         "-crf 23",
         `-maxrate ${bitrate}k`,
         `-bufsize ${bitrate * 2}k`,
-        // Keyframes at the same timestamps in every rendition, otherwise
-        // the player can't switch cleanly between qualities at a segment edge.
+        `-b:a ${AUDIO_BITRATE_KBPS}k`,
+        "-ac 2",
+        // Same keyframe timestamps in every rendition -> clean quality switching
         `-force_key_frames expr:gte(t,n_forced*${SEGMENT_SECONDS})`,
         "-sc_threshold 0",
         `-hls_time ${SEGMENT_SECONDS}`,
         "-hls_playlist_type vod",
+        "-hls_flags independent_segments",
         `-hls_segment_filename ${path.join(outDir, "seg_%03d.ts")}`,
       ])
       .output(path.join(outDir, "index.m3u8"))
@@ -80,10 +82,10 @@ function transcodeToHls(inputPath, outDir, { height, bitrate }) {
   });
 }
 
-// master.m3u8 = the menu of qualities. hls.js reads this, then picks a
-// rendition per segment based on measured download speed.
+// Written atomically (tmp + rename) because we now rewrite it while the video
+// may already be getting played.
 function writeMasterPlaylist(videoDir, renditions, aspect) {
-  const lines = ["#EXTM3U", "#EXT-X-VERSION:3"];
+  const lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-INDEPENDENT-SEGMENTS"];
 
   for (const r of renditions) {
     const width = Math.round((r.height * aspect) / 2) * 2;
@@ -94,7 +96,10 @@ function writeMasterPlaylist(videoDir, renditions, aspect) {
     );
   }
 
-  fs.writeFileSync(path.join(videoDir, "master.m3u8"), lines.join("\n") + "\n");
+  const finalPath = path.join(videoDir, "master.m3u8");
+  const tmpPath = `${finalPath}.tmp`;
+  fs.writeFileSync(tmpPath, lines.join("\n") + "\n");
+  fs.renameSync(tmpPath, finalPath);
 }
 
 function safeRmDir(dirPath) {
@@ -103,126 +108,157 @@ function safeRmDir(dirPath) {
   });
 }
 
+async function markPlayable({ videoId, videoTitle, userId, senderInfo }) {
+  await prisma.video.update({
+    where: { id: videoId },
+    data: { isProcessed: true, hlsPath: `/hls/${videoId}/master.m3u8` },
+  });
+
+  try {
+    await redis.del(CACHE_KEYS.ALL_VIDEOS);
+  } catch (err) {
+    console.error("[Worker] Redis invalidate failed:", err.message);
+  }
+
+  const subscriptions = await prisma.subscription.findMany({
+    where: { channelId: userId },
+    select: { subscriberId: true },
+  });
+  if (subscriptions.length === 0) return;
+
+  const message = `uploaded a new video: "${videoTitle}"`;
+  await prisma.notification.createMany({
+    data: subscriptions.map((sub) => ({
+      userId: sub.subscriberId,
+      senderId: userId,
+      type: "UPLOAD",
+      message,
+    })),
+    skipDuplicates: true,
+  });
+
+  if (global.io) {
+    subscriptions.forEach((sub) => {
+      global.io.to(sub.subscriberId).emit("newNotification", {
+        type: "UPLOAD",
+        message,
+        sender: senderInfo,
+        createdAt: new Date(),
+      });
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Job: transcode
+// ---------------------------------------------------------------------------
+async function handleTranscode(job) {
+  const { videoId, videoTitle, userId, senderInfo, filepath } = job.data;
+  console.log(`[Worker] Transcoding job ${job.id}, video ${videoId}`);
+
+  const workDir = path.join(TMP_ROOT, videoId);
+  fs.mkdirSync(workDir, { recursive: true });
+  const localSourcePath = path.join(workDir, `source-${videoId}.mp4`);
+  const videoDir = path.join(HLS_ROOT, videoId);
+
+  try {
+    await downloadToFile(filepath, localSourcePath);
+
+    const { width: srcW, height: srcH } = await getSourceInfo(localSourcePath);
+    if (!srcH) throw new Error("Could not read source video height.");
+    const aspect = srcW && srcH ? srcW / srcH : 16 / 9;
+
+    const targets = LADDER.filter((r) => r.height <= srcH);
+    if (targets.length === 0) {
+      targets.push({ label: `${srcH}p`, height: srcH, bitrate: 400 });
+    }
+
+    const successful = [];
+    let published = false;
+
+    for (const target of targets) {
+      try {
+        await transcodeToHls(localSourcePath, path.join(videoDir, target.label), target);
+        successful.push(target);
+
+        // Master always reflects what's actually on disk.
+        writeMasterPlaylist(videoDir, successful, aspect);
+
+        // First rendition ready => video is watchable NOW.
+        if (!published) {
+          await markPlayable({ videoId, videoTitle, userId, senderInfo });
+          published = true;
+        }
+
+        await job.updateProgress(Math.round((successful.length / targets.length) * 100));
+        console.log(`[Worker] ${target.label} ready for video ${videoId}`);
+      } catch (err) {
+        // Video deleted while we were transcoding: stop, don't leave junk.
+        if (err.code === "P2025") {
+          console.warn(`[Worker] Video ${videoId} was deleted mid-transcode. Aborting.`);
+          safeRmDir(videoDir);
+          return { status: "aborted_video_deleted" };
+        }
+        console.error(`[Worker Error] ${target.label} failed for ${videoId}:`, err.message);
+      }
+    }
+
+    if (successful.length === 0) {
+      throw new Error("All resolution transcodes failed.");
+    }
+
+    return { status: "success", renditions: successful.map((r) => r.label) };
+  } catch (error) {
+    console.error(`[Worker Error] Job ${job.id} failed:`, error.message);
+    throw error;
+  } finally {
+    safeRmDir(workDir);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Job: delete assets (Cloudinary original + local HLS output)
+// Runs as a queue job so it is retried if Cloudinary is down, instead of
+// silently leaking storage forever.
+// ---------------------------------------------------------------------------
+async function handleDeleteAssets(job) {
+  const { videoId, publicId } = job.data;
+
+  if (publicId) {
+    const res = await cloudinary.uploader.destroy(publicId, {
+      resource_type: "video",
+      invalidate: true,
+    });
+    // destroy() does NOT throw on failure; it returns { result }.
+    if (res.result !== "ok" && res.result !== "not found") {
+      throw new Error(`Cloudinary destroy returned "${res.result}" for ${publicId}`);
+    }
+  }
+
+  await fs.promises.rm(path.join(HLS_ROOT, videoId), { recursive: true, force: true });
+  await fs.promises.rm(path.join(TMP_ROOT, videoId), { recursive: true, force: true });
+
+  console.log(`[Worker] Assets deleted for video ${videoId}`);
+  return { status: "deleted" };
+}
+
 const videoWorker = new Worker(
   "videoQueue",
   async (job) => {
-    const { videoId, videoTitle, userId, senderInfo, filepath } = job.data;
-    console.log(`[Worker] Starting transcoding for Job ID: ${job.id}, Video ID: ${videoId}`);
-
-    // Scratch space for the downloaded source (deleted in `finally`).
-    const workDir = path.join(process.cwd(), "tmp", "transcode", videoId);
-    fs.mkdirSync(workDir, { recursive: true });
-
-    // Build local temp filenames from videoId only — NOT from `filename`.
-    // multer-storage-cloudinary sets file.filename to the Cloudinary
-    // public_id, which contains "/" and no extension. videoId is a flat
-    // uuid, so it's safe as a local filename.
-    const localSourcePath = path.join(workDir, `source-${videoId}.mp4`);
-
-    // Final HLS output (NOT deleted — this is what gets streamed).
-    const videoDir = path.join(HLS_ROOT, videoId);
-
-    try {
-      // 1. Pull the Cloudinary source down to local disk for ffmpeg.
-      await downloadToFile(filepath, localSourcePath);
-
-      // 2. Decide which renditions make sense for this source.
-      const { width: srcW, height: srcH } = await getSourceInfo(localSourcePath);
-      if (!srcH) throw new Error("Could not read source video height.");
-
-      const targets = LADDER.filter((r) => r.height <= srcH);
-      if (targets.length === 0) {
-        // Source is smaller than our smallest rung: keep it as-is.
-        targets.push({ label: `${srcH}p`, height: srcH, bitrate: 400 });
-      }
-
-      // 3. Transcode each rendition to HLS, sequentially.
-      // One rendition failing shouldn't kill the others.
-      const successful = [];
-      for (const target of targets) {
-        try {
-          await transcodeToHls(localSourcePath, path.join(videoDir, target.label), target);
-          successful.push(target);
-
-          await job.updateProgress(Math.round((successful.length / targets.length) * 100));
-          console.log(`[Worker] ${target.label} HLS ready for video ${videoId}`);
-        } catch (err) {
-          console.error(`[Worker Error] ${target.label} failed for video ${videoId}:`, err.message);
-        }
-      }
-
-      if (successful.length === 0) {
-        throw new Error("All resolution transcodes failed.");
-      }
-
-      // 4. Write the master playlist and mark the video as processed.
-      writeMasterPlaylist(videoDir, successful, srcW / srcH);
-
-      await prisma.video.update({
-        where: { id: videoId },
-        data: {
-          isProcessed: true,
-          hlsPath: `/hls/${videoId}/master.m3u8`,
-        },
-      });
-
-      // The worker is a separate process, so the API's cached video list
-      // has no idea this video just got renditions. Invalidate it here.
-      try {
-        await redis.del(CACHE_KEYS.ALL_VIDEOS);
-      } catch (err) {
-        console.error("[Worker] Redis invalidate failed:", err.message);
-      }
-
-      // 5. Notify subscribers.
-      const subscriptions = await prisma.subscription.findMany({
-        where: { channelId: userId },
-        select: { subscriberId: true },
-      });
-
-      if (subscriptions.length > 0) {
-        const notificationData = subscriptions.map((sub) => ({
-          userId: sub.subscriberId,
-          senderId: userId,
-          type: "UPLOAD",
-          message: `uploaded a new video: "${videoTitle}"`,
-        }));
-
-        await prisma.notification.createMany({ data: notificationData, skipDuplicates: true });
-
-        if (global.io) {
-          subscriptions.forEach((sub) => {
-            global.io.to(sub.subscriberId).emit("newNotification", {
-              type: "UPLOAD",
-              message: `uploaded a new video: "${videoTitle}"`,
-              sender: senderInfo,
-              createdAt: new Date(),
-            });
-          });
-        }
-      }
-
-      console.log(
-        `[Worker] Job ${job.id} finished. Renditions: ${successful.map((r) => r.label).join(", ")}`
-      );
-      return { status: "success", renditions: successful.map((r) => r.label) };
-    } catch (error) {
-      console.error(`[Worker Error] Job ${job.id} failed:`, error.message);
-      throw error;
-    } finally {
-      // Only the scratch dir is cleaned up. The HLS output stays.
-      safeRmDir(workDir);
+    switch (job.name) {
+      case "deleteVideoAssets":
+        return handleDeleteAssets(job);
+      case "processVideoUpload":
+      default:
+        return handleTranscode(job);
     }
   },
   { connection, concurrency: 1 }
 );
 
-videoWorker.on("completed", (job) => {
-  console.log(`Job ${job.id} completed successfully!`);
-});
-
-videoWorker.on("failed", (job, err) => {
-  console.log(`Job ${job.id} failed with error: ${err.message}`);
-});
+videoWorker.on("completed", (job) => console.log(`Job ${job.id} (${job.name}) completed`));
+videoWorker.on("failed", (job, err) =>
+  console.log(`Job ${job?.id} (${job?.name}) failed: ${err.message}`)
+);
 
 export default videoWorker;
