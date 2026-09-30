@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   RefreshCw,
   WifiOff,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { useHlsSource } from "../hooks/useHlsSource";
@@ -33,9 +35,48 @@ function formatTime(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function MenuShell({ children, className = "w-52" }) {
+  return (
+    <div
+      className={`absolute bottom-11 right-0 ${className} rounded-xl border border-white/10 bg-zinc-950/95 py-1.5 text-sm shadow-2xl backdrop-blur-md z-20`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MenuBack({ onClick, title }) {
+  return (
+    <button
+      onClick={onClick}
+      className="mb-1 flex w-full cursor-pointer items-center gap-1.5 border-b border-white/10 px-3 py-2 text-left text-zinc-300 transition hover:text-white"
+    >
+      <ChevronLeft className="h-4 w-4" />
+      <span className="font-medium">{title}</span>
+    </button>
+  );
+}
+
+function MenuOption({ active, onClick, children, hint }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full cursor-pointer items-center justify-between px-4 py-2 transition hover:bg-white/10 ${
+        active ? "text-white" : "text-zinc-400"
+      }`}
+    >
+      <span className="flex items-center gap-2">
+        {children}
+        {hint && <span className="text-xs text-zinc-500">{hint}</span>}
+      </span>
+      {active && <Check className="h-4 w-4 text-violet-400" />}
+    </button>
+  );
+}
+
 export default function VideoPlayer({
   src,
-  qualities = [], // [{ label, src }] — manual progressive-MP4 renditions (legacy videos without HLS)
+  qualities = [], // [{ label, src }] — legacy progressive-MP4 renditions (no HLS)
   videoId,
   isLive,
   poster,
@@ -70,20 +111,25 @@ export default function VideoPlayer({
   const [manualQualityLabel, setManualQualityLabel] = useState(null);
 
   const hideTimer = useRef(null);
-  const volFlashTimer = useRef(null); // separate from hideTimer (hideTimer holds a number id)
+  const volFlashTimer = useRef(null);
+  const seekFlashTimer = useRef(null);
   const slowNetworkTimer = useRef(null);
-  const pendingResumeRef = useRef(null); // { time, wasPlaying } across a quality switch
+  const pendingResumeRef = useRef(null);
+
+  // Latest callbacks in refs => video listeners are bound once per source,
+  // not re-bound on every parent render.
+  const handleTimeUpdateRef = useRef(handleTimeUpdate);
+  const onEndedRef = useRef(onEnded);
+  handleTimeUpdateRef.current = handleTimeUpdate;
+  onEndedRef.current = onEnded;
 
   const hasManualQualities = qualities.length > 1;
 
-  // When manual renditions exist, they decide what actually plays;
-  // `src` stays as the fallback (also what HLS setup below keys off when
-  // there are no manual renditions to choose from).
   const resolvedSrc = hasManualQualities
     ? qualities.find((q) => q.label === manualQualityLabel)?.src || qualities[0].src
     : src;
 
-  const { levels, currentLevel, changeQuality: changeQualityHls, fatalError, setFatalError } =
+  const { levels, currentLevel, activeLevel, changeQuality, fatalError, setFatalError } =
     useHlsSource(videoRef, resolvedSrc, retryToken, {
       onSetupStart: () => setActiveMenu(null),
     });
@@ -91,15 +137,64 @@ export default function VideoPlayer({
   const { resumePrompt, applyResume, dismissResume, saveProgress, clearProgress } =
     useResumePlayback(videoRef, videoId, resolvedSrc);
 
-  const handleQualitySelect = (label) => {
-    const v = videoRef.current;
-    pendingResumeRef.current = { time: v?.currentTime || 0, wasPlaying: v && !v.paused };
-    setManualQualityLabel(label);
-    setActiveMenu(null);
-  };
+  const saveProgressRef = useRef(saveProgress);
+  const clearProgressRef = useRef(clearProgress);
+  saveProgressRef.current = saveProgress;
+  clearProgressRef.current = clearProgress;
 
-  // Apply volume/mute/speed imperatively — these are JS properties on the
-  // media element, not real HTML attributes, so JSX props alone never work.
+  // ---- Quality (one list for both HLS levels and legacy MP4 renditions) ----
+  const qualityOptions = hasManualQualities
+    ? qualities.map((q) => ({
+        key: q.label,
+        label: q.label,
+        active: (manualQualityLabel || qualities[0].label) === q.label,
+        onSelect: () => {
+          const v = videoRef.current;
+          pendingResumeRef.current = { time: v?.currentTime || 0, wasPlaying: v && !v.paused };
+          setManualQualityLabel(q.label);
+          setActiveMenu(null);
+        },
+      }))
+    : [
+        ...(levels.length > 0
+          ? [
+              {
+                key: "auto",
+                label: "Auto",
+                hint: currentLevel === -1 && activeLevel >= 0 ? `${levels[activeLevel]?.height}p` : "",
+                active: currentLevel === -1,
+                onSelect: () => {
+                  changeQuality(-1);
+                  setActiveMenu(null);
+                },
+              },
+            ]
+          : []),
+        ...levels
+          .map((l, index) => ({ ...l, index }))
+          .sort((a, b) => b.height - a.height)
+          .map((l) => ({
+            key: `lvl-${l.index}`,
+            label: `${l.height}p`,
+            active: currentLevel === l.index,
+            onSelect: () => {
+              changeQuality(l.index);
+              setActiveMenu(null);
+            },
+          })),
+      ];
+
+  const hasQualityMenu = qualityOptions.length > 0;
+
+  const currentQualityLabel = hasManualQualities
+    ? manualQualityLabel || qualities[0].label
+    : currentLevel === -1
+    ? activeLevel >= 0
+      ? `${levels[activeLevel]?.height}p`
+      : "Auto"
+    : `${levels[currentLevel]?.height}p`;
+
+  // volume/mute/speed are JS properties on the media element, not attributes
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -114,33 +209,32 @@ export default function VideoPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedSrc, retryToken]);
 
-  const changeQuality = (index) => {
-    changeQualityHls(index);
-    setActiveMenu(null);
-  };
-
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) v.play();
+    if (v.paused) v.play().catch(() => {});
     else v.pause();
   }, []);
 
   const seekTo = useCallback(
     (time) => {
       const v = videoRef.current;
-      if (!v) return;
+      if (!v || !isFinite(duration)) return;
       v.currentTime = Math.min(Math.max(time, 0), duration || 0);
     },
     [duration]
   );
 
-  const skip = useCallback((delta) => {
-    const v = videoRef.current;
-    if (!v) return;
-    seekTo(v.currentTime + delta);
-  }, [seekTo]);
+  const skip = useCallback(
+    (delta) => {
+      const v = videoRef.current;
+      if (!v) return;
+      seekTo(v.currentTime + delta);
+    },
+    [seekTo]
+  );
 
+  // ---- Progress bar (pointer events => mouse + touch + pen) ----
   const getTimeFromClientX = (clientX) => {
     const bar = progressBarRef.current;
     if (!bar) return 0;
@@ -149,28 +243,29 @@ export default function VideoPlayer({
     return ratio * duration;
   };
 
-  const handleBarMouseMove = (e) => {
-    const t = getTimeFromClientX(e.clientX);
-    setHoverTime(t);
-    setHoverX(e.clientX - progressBarRef.current.getBoundingClientRect().left);
-    if (dragging) seekTo(t);
+  const handleBarPointerMove = (e) => {
+    const rect = progressBarRef.current.getBoundingClientRect();
+    setHoverTime(getTimeFromClientX(e.clientX));
+    setHoverX(Math.min(Math.max(e.clientX - rect.left, 0), rect.width));
+    if (dragging) seekTo(getTimeFromClientX(e.clientX));
   };
 
-  const handleBarMouseDown = (e) => {
+  const handleBarPointerDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
     seekTo(getTimeFromClientX(e.clientX));
   };
 
-  useEffect(() => {
-    const stopDrag = () => setDragging(false);
-    window.addEventListener("mouseup", stopDrag);
-    return () => window.removeEventListener("mouseup", stopDrag);
-  }, []);
+  const handleBarPointerUp = (e) => {
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    setDragging(false);
+  };
 
   const handleDoubleClickZone = (dir) => {
     skip(dir === "left" ? -10 : 10);
     setSeekFlash(dir);
-    setTimeout(() => setSeekFlash(null), 500);
+    clearTimeout(seekFlashTimer.current);
+    seekFlashTimer.current = setTimeout(() => setSeekFlash(null), 500);
   };
 
   const setVolumeSafely = (val) => {
@@ -183,10 +278,6 @@ export default function VideoPlayer({
     }
     setMuted(clamped === 0);
     setVolumeFlash(clamped);
-    // FIX: pehle yahan hideTimer.current par property set ki ja rahi thi
-    // (._volFlash), lekin hideTimer.current ek number (timeout id) hota hai.
-    // ES modules strict mode mein chalte hain, to primitive par property set
-    // karna TypeError throw karta tha. Ab alag ref use hota hai.
     clearTimeout(volFlashTimer.current);
     volFlashTimer.current = setTimeout(() => setVolumeFlash(null), 700);
   };
@@ -208,11 +299,8 @@ export default function VideoPlayer({
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) containerRef.current?.requestFullscreen();
+    else document.exitFullscreen();
   };
 
   useEffect(() => {
@@ -223,11 +311,8 @@ export default function VideoPlayer({
 
   const togglePiP = async () => {
     try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await videoRef.current.requestPictureInPicture();
-      }
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else await videoRef.current.requestPictureInPicture();
     } catch (err) {
       console.warn("PiP not supported", err);
     }
@@ -250,11 +335,11 @@ export default function VideoPlayer({
     setRetryToken((n) => n + 1);
   };
 
-  // Timers cleanup on unmount
   useEffect(() => {
     return () => {
       clearTimeout(hideTimer.current);
       clearTimeout(volFlashTimer.current);
+      clearTimeout(seekFlashTimer.current);
       clearTimeout(slowNetworkTimer.current);
     };
   }, []);
@@ -277,31 +362,43 @@ export default function VideoPlayer({
     resetHideTimer,
   });
 
-  // Video element event listeners
+  // ---- <video> events ----
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
+    const clearSlowTimer = () => {
+      clearTimeout(slowNetworkTimer.current);
+      setSlowNetwork(false);
+    };
+
+    const updateBuffered = () => {
+      const b = v.buffered;
+      const t = v.currentTime;
+      for (let i = 0; i < b.length; i++) {
+        if (b.start(i) <= t + 0.5 && t <= b.end(i)) {
+          setBuffered(b.end(i));
+          return;
+        }
+      }
+      setBuffered(0);
+    };
+
     const onTimeUpdate = () => {
       setCurrentTime(v.currentTime);
-      handleTimeUpdate?.({ target: v });
-      saveProgress(v.currentTime, v.duration);
+      handleTimeUpdateRef.current?.({ target: v });
+      saveProgressRef.current?.(v.currentTime, v.duration);
+      updateBuffered();
     };
     const onLoadedMeta = () => {
       setDuration(v.duration);
-      setLoading(false);
-
-      // Restore playback position/state after a manual quality switch
-      // (the src just changed underneath the same video).
       if (pendingResumeRef.current) {
         v.currentTime = pendingResumeRef.current.time;
-        if (pendingResumeRef.current.wasPlaying) v.play();
+        if (pendingResumeRef.current.wasPlaying) v.play().catch(() => {});
         pendingResumeRef.current = null;
       }
     };
-    const onProgress = () => {
-      if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1));
-    };
+    const onDurationChange = () => setDuration(v.duration);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onWaiting = () => {
@@ -309,45 +406,57 @@ export default function VideoPlayer({
       clearTimeout(slowNetworkTimer.current);
       slowNetworkTimer.current = setTimeout(() => setSlowNetwork(true), 3500);
     };
-    const onCanPlay = () => {
+    const onReady = () => {
       setLoading(false);
-      setSlowNetwork(false);
-      clearTimeout(slowNetworkTimer.current);
+      clearSlowTimer();
     };
     const onError = () => {
-      console.error("Video failed to load:", v.error);
-      setLoading(false);
-      setFatalError(true);
+      // With hls.js attached, errors are handled by the hook; only react to
+      // native <video> errors here.
+      if (v.error) {
+        console.error("Video failed to load:", v.error);
+        setLoading(false);
+        setFatalError(true);
+      }
     };
     const onEndedEvent = () => {
-      clearProgress();
-      onEnded?.();
+      clearProgressRef.current?.();
+      onEndedRef.current?.();
     };
 
     v.addEventListener("timeupdate", onTimeUpdate);
     v.addEventListener("loadedmetadata", onLoadedMeta);
-    v.addEventListener("progress", onProgress);
+    v.addEventListener("durationchange", onDurationChange);
+    v.addEventListener("progress", updateBuffered);
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("waiting", onWaiting);
-    v.addEventListener("canplay", onCanPlay);
+    v.addEventListener("canplay", onReady);
+    v.addEventListener("playing", onReady);
     v.addEventListener("error", onError);
     v.addEventListener("ended", onEndedEvent);
 
     return () => {
       v.removeEventListener("timeupdate", onTimeUpdate);
       v.removeEventListener("loadedmetadata", onLoadedMeta);
-      v.removeEventListener("progress", onProgress);
+      v.removeEventListener("durationchange", onDurationChange);
+      v.removeEventListener("progress", updateBuffered);
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
       v.removeEventListener("waiting", onWaiting);
-      v.removeEventListener("canplay", onCanPlay);
+      v.removeEventListener("canplay", onReady);
+      v.removeEventListener("playing", onReady);
       v.removeEventListener("error", onError);
       v.removeEventListener("ended", onEndedEvent);
       clearTimeout(slowNetworkTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedSrc, retryToken, handleTimeUpdate, onEnded]);
+  }, [resolvedSrc, retryToken]);
+
+  // New source => show spinner again
+  useEffect(() => {
+    setLoading(true);
+  }, [resolvedSrc, retryToken]);
 
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -355,7 +464,7 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full aspect-video bg-black overflow-hidden group/player select-none transition-shadow duration-500 ${
+      className={`group/player relative aspect-video w-full select-none overflow-hidden bg-black transition-shadow duration-500 ${
         playing ? "shadow-[0_0_60px_-15px_rgba(139,92,246,0.35)]" : ""
       }`}
       onMouseMove={resetHideTimer}
@@ -366,116 +475,145 @@ export default function VideoPlayer({
         }
       }}
     >
-      <video ref={videoRef} poster={poster} autoPlay playsInline className="w-full h-full object-contain" onClick={togglePlay} />
+      <video
+        ref={videoRef}
+        poster={poster}
+        autoPlay
+        playsInline
+        className="h-full w-full object-contain"
+        onClick={togglePlay}
+      />
 
-      <div className="absolute inset-0 flex pointer-events-none">
-        <div className="w-1/2 h-full pointer-events-auto" onDoubleClick={() => handleDoubleClickZone("left")} />
-        <div className="w-1/2 h-full pointer-events-auto" onDoubleClick={() => handleDoubleClickZone("right")} />
+      {/* double-tap zones */}
+      <div className="pointer-events-none absolute inset-0 flex">
+        <div className="pointer-events-auto h-full w-1/2" onDoubleClick={() => handleDoubleClickZone("left")} />
+        <div className="pointer-events-auto h-full w-1/2" onDoubleClick={() => handleDoubleClickZone("right")} />
       </div>
 
       {seekFlash && (
-        <div className={`absolute top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 text-white pointer-events-none animate-pulse ${seekFlash === "left" ? "left-10" : "right-10"}`}>
-          {seekFlash === "left" ? <RotateCcw className="w-8 h-8" /> : <RotateCw className="w-8 h-8" />}
-          <span className="text-xs font-bold">10s</span>
+        <div
+          className={`pointer-events-none absolute top-1/2 flex -translate-y-1/2 animate-pulse flex-col items-center gap-1 text-white ${
+            seekFlash === "left" ? "left-10" : "right-10"
+          }`}
+        >
+          {seekFlash === "left" ? <RotateCcw className="h-8 w-8" /> : <RotateCw className="h-8 w-8" />}
+          <span className="text-xs font-semibold">10 seconds</span>
         </div>
       )}
 
       {volumeFlash !== null && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm border border-white/10 text-white px-3 py-1.5 rounded-full text-xs font-mono flex items-center gap-2 pointer-events-none z-20">
-          {volumeFlash === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        <div className="pointer-events-none absolute left-1/2 top-6 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/80 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
+          {volumeFlash === 0 ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           {Math.round(volumeFlash * 100)}%
         </div>
       )}
 
       {loading && !fatalError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-          <div className="w-10 h-10 border-[3px] border-white/30 border-t-violet-400 rounded-full animate-spin" />
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/25 border-t-violet-400" />
           {slowNetwork && (
-            <span className="text-[11px] text-zinc-400 font-mono flex items-center gap-1.5 bg-black/60 px-2.5 py-1 rounded-full">
-              <WifiOff className="w-3 h-3" /> Buffering — slow connection
+            <span className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1 text-xs text-zinc-300">
+              <WifiOff className="h-3 w-3" /> Slow connection — buffering
             </span>
           )}
         </div>
       )}
 
       {fatalError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90 text-center px-6">
-          <AlertTriangle className="w-8 h-8 text-red-400" />
-          <p className="text-xs text-zinc-300 font-semibold">This video couldn't be played.</p>
-          <button onClick={handleRetry} className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-4 py-2 rounded-xl hover:bg-zinc-200 transition cursor-pointer">
-            <RefreshCw className="w-3.5 h-3.5" />
-            Retry
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/90 px-6 text-center">
+          <AlertTriangle className="h-8 w-8 text-red-400" />
+          <p className="text-sm font-medium text-zinc-200">This video couldn't be played.</p>
+          <button
+            onClick={handleRetry}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-zinc-200"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Try again
           </button>
         </div>
       )}
 
       {!playing && !loading && !fatalError && (
-        <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center cursor-pointer">
-          <span className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-violet-600/80 transition">
-            <Play className="w-7 h-7 text-white fill-white ml-1" />
+        <button onClick={togglePlay} className="absolute inset-0 flex cursor-pointer items-center justify-center" aria-label="Play">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm transition hover:bg-violet-600/80">
+            <Play className="ml-1 h-7 w-7 fill-white text-white" />
           </span>
         </button>
       )}
 
       {isLive && (
-        <span className="absolute top-3 left-3 flex items-center gap-1 bg-red-600 text-[10px] font-bold px-2 py-1 rounded text-white tracking-wide z-10">
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+        <span className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded bg-red-600 px-2 py-1 text-[10px] font-bold tracking-wide text-white">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
           LIVE
         </span>
       )}
 
       {resumePrompt !== null && !fatalError && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-2xl z-20 text-xs">
+        <div className="absolute bottom-20 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-white/15 bg-zinc-950/95 px-4 py-2.5 text-xs shadow-2xl backdrop-blur-md">
           <span className="text-zinc-300">
-            Resume from <span className="font-mono text-violet-400 font-bold">{formatTime(resumePrompt)}</span>?
+            Continue from <span className="font-semibold text-violet-400">{formatTime(resumePrompt)}</span>?
           </span>
-          <button onClick={() => applyResume(resumePrompt)} className="bg-white text-black font-bold px-3 py-1 rounded-lg cursor-pointer hover:bg-zinc-200 transition">
-            Resume
+          <button onClick={() => applyResume(resumePrompt)} className="cursor-pointer rounded-lg bg-white px-3 py-1 font-semibold text-black transition hover:bg-zinc-200">
+            Continue
           </button>
-          <button onClick={dismissResume} className="text-zinc-500 hover:text-zinc-300 cursor-pointer transition">
-            Dismiss
+          <button onClick={dismissResume} className="cursor-pointer text-zinc-500 transition hover:text-zinc-300">
+            Start over
           </button>
         </div>
       )}
 
       {showShortcuts && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-30 p-6">
-          <div className="bg-[#121216] border border-white/15 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
-            <div className="flex items-center gap-2 mb-3 text-white">
-              <Keyboard className="w-4 h-4 text-violet-400" />
-              <h4 className="font-bold text-sm">Keyboard shortcuts</h4>
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-zinc-950 p-5 shadow-2xl">
+            <div className="mb-3 flex items-center gap-2 text-white">
+              <Keyboard className="h-4 w-4 text-violet-400" />
+              <h4 className="text-sm font-semibold">Keyboard shortcuts</h4>
             </div>
-            <div className="grid grid-cols-2 gap-y-2 text-[11px] text-zinc-300 font-mono">
-              <span>Space / K</span><span className="text-zinc-500">Play / Pause</span>
-              <span>J / L or ←/→</span><span className="text-zinc-500">Seek 10s</span>
+            <div className="grid grid-cols-2 gap-y-2 text-xs text-zinc-300">
+              <span>Space / K</span><span className="text-zinc-500">Play / pause</span>
+              <span>J / L or ← / →</span><span className="text-zinc-500">Seek 10 seconds</span>
               <span>↑ / ↓</span><span className="text-zinc-500">Volume</span>
               <span>M</span><span className="text-zinc-500">Mute</span>
               <span>F</span><span className="text-zinc-500">Fullscreen</span>
               <span>T</span><span className="text-zinc-500">Theater mode</span>
               <span>0–9</span><span className="text-zinc-500">Jump to 0–90%</span>
-              <span>?</span><span className="text-zinc-500">Toggle this menu</span>
+              <span>?</span><span className="text-zinc-500">Show this list</span>
             </div>
-            <button onClick={() => setShowShortcuts(false)} className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold py-2 rounded-lg transition cursor-pointer">
+            <button onClick={() => setShowShortcuts(false)} className="mt-4 w-full cursor-pointer rounded-lg bg-white/10 py-2 text-xs font-semibold text-white transition hover:bg-white/20">
               Close
             </button>
           </div>
         </div>
       )}
 
-      <div className={`absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-linear-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+      {/* controls */}
+      <div
+        className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-3 pt-10 transition-opacity duration-300 ${
+          controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        {/* progress */}
         <div
           ref={progressBarRef}
-          className="relative w-full h-1.5 group/bar cursor-pointer mb-3"
-          onMouseMove={handleBarMouseMove}
-          onMouseLeave={() => setHoverTime(null)}
-          onMouseDown={handleBarMouseDown}
+          className="group/bar relative mb-3 h-4 w-full cursor-pointer touch-none py-1.5"
+          onPointerMove={handleBarPointerMove}
+          onPointerLeave={() => !dragging && setHoverTime(null)}
+          onPointerDown={handleBarPointerDown}
+          onPointerUp={handleBarPointerUp}
         >
-          <div className="absolute inset-0 bg-white/20 rounded-full" />
-          <div className="absolute inset-y-0 left-0 bg-white/35 rounded-full" style={{ width: `${bufferedPct}%` }} />
-          <div className="absolute inset-y-0 left-0 bg-violet-500 rounded-full" style={{ width: `${progressPct}%` }} />
-          <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-violet-400 shadow opacity-0 group-hover/bar:opacity-100 transition-opacity" style={{ left: `calc(${progressPct}% - 7px)` }} />
+          <div className="relative h-1 w-full rounded-full bg-white/20 transition-all group-hover/bar:h-1.5">
+            <div className="absolute inset-y-0 left-0 rounded-full bg-white/35" style={{ width: `${bufferedPct}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-violet-500" style={{ width: `${progressPct}%` }} />
+            <div
+              className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-violet-400 opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
+              style={{ left: `calc(${progressPct}% - 7px)` }}
+            />
+          </div>
           {hoverTime !== null && !isLive && (
-            <div className="absolute -top-8 -translate-x-1/2 bg-black/90 text-white text-[10px] font-mono px-1.5 py-1 rounded pointer-events-none" style={{ left: hoverX }}>
+            <div
+              className="pointer-events-none absolute -top-6 -translate-x-1/2 rounded bg-black/90 px-1.5 py-1 text-[11px] tabular-nums text-white"
+              style={{ left: hoverX }}
+            >
               {formatTime(hoverTime)}
             </div>
           )}
@@ -483,124 +621,106 @@ export default function VideoPlayer({
 
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
-            <button onClick={togglePlay} className="hover:text-gray-400 transition cursor-pointer">
-              {playing ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
+            <button onClick={togglePlay} className="cursor-pointer transition hover:text-zinc-300" aria-label={playing ? "Pause" : "Play"}>
+              {playing ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
             </button>
 
-            <div className="flex items-center gap-1.5 group/vol">
-              <button onClick={toggleMute} className="transition cursor-pointer">
-                {muted || volume === 0 ? <VolumeX className="w-4.5 h-4.5" /> : <Volume2 className="w-4.5 h-4.5" />}
+            <div className="group/vol flex items-center gap-1.5">
+              <button onClick={toggleMute} className="cursor-pointer" aria-label="Mute">
+                {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
-              <div className="w-0 group-hover/vol:w-16 overflow-hidden transition-all duration-200">
-                <input type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} onChange={handleVolumeChange} className="w-16 accent-violet-500 cursor-pointer h-1" />
+              <div className="w-0 overflow-hidden transition-all duration-200 group-hover/vol:w-16">
+                <input type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} onChange={handleVolumeChange} className="h-1 w-16 cursor-pointer accent-violet-500" />
               </div>
             </div>
 
-            {!isLive && (
-              <span className="text-[11px] font-mono text-zinc-300 tabular-nums">
+            {isLive ? (
+              <span className="text-xs font-semibold text-red-400">LIVE</span>
+            ) : (
+              <span className="text-xs tabular-nums text-zinc-300">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
             )}
-            {isLive && <span className="text-[11px] font-mono text-red-400 font-semibold">LIVE</span>}
           </div>
 
-          <div className="flex items-center gap-3 relative">
-            <button onClick={() => setShowShortcuts(true)} className="hidden sm:flex hover:text-violet-400 transition cursor-pointer" title="Keyboard shortcuts (?)">
-              <Keyboard className="w-4.5 h-4.5" />
+          <div className="relative flex items-center gap-3">
+            {hasQualityMenu && (
+              <button
+                onClick={() => setActiveMenu(activeMenu === "quality" ? null : "quality")}
+                className="cursor-pointer rounded-md border border-white/20 px-2 py-0.5 text-xs font-medium tabular-nums transition hover:border-violet-400 hover:text-violet-300"
+                title="Video quality"
+              >
+                {currentQualityLabel}
+              </button>
+            )}
+
+            <button onClick={() => setShowShortcuts(true)} className="hidden cursor-pointer transition hover:text-violet-400 sm:flex" title="Keyboard shortcuts (?)">
+              <Keyboard className="h-5 w-5" />
             </button>
 
             {typeof onToggleTheater === "function" && (
-              <button onClick={onToggleTheater} className={`hidden sm:flex transition cursor-pointer ${theaterMode ? "text-violet-400" : "hover:text-violet-400"}`} title="Theater mode (T)">
-                <RectangleHorizontal className="w-4.5 h-4.5" />
+              <button onClick={onToggleTheater} className={`hidden cursor-pointer transition sm:flex ${theaterMode ? "text-violet-400" : "hover:text-violet-400"}`} title="Theater mode (T)">
+                <RectangleHorizontal className="h-5 w-5" />
               </button>
             )}
 
             <div className="relative">
-              <button onClick={() => setActiveMenu(activeMenu === "main" ? null : "main")} className="flex items-center hover:text-violet-400 transition cursor-pointer p-1" title="Settings">
-                <Settings className="w-4.5 h-4.5" />
+              <button
+                onClick={() => setActiveMenu(activeMenu === "main" ? null : "main")}
+                className="flex cursor-pointer items-center p-1 transition hover:text-violet-400"
+                title="Settings"
+              >
+                <Settings className="h-5 w-5" />
               </button>
 
               {activeMenu === "main" && (
-                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-44 shadow-2xl z-20 text-xs">
-                  <button onClick={() => setActiveMenu("speed")} className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200">
-                    <span>Playback Speed</span>
-                    <span className="font-mono text-white/50">{speed}x</span>
+                <MenuShell>
+                  <button onClick={() => setActiveMenu("speed")} className="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-zinc-200 transition hover:bg-white/10">
+                    <span>Playback speed</span>
+                    <span className="flex items-center gap-1 text-zinc-500">
+                      {speed === 1 ? "Normal" : `${speed}x`} <ChevronRight className="h-4 w-4" />
+                    </span>
                   </button>
-
-                  {hasManualQualities ? (
-                    <button onClick={() => setActiveMenu("quality")} className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200">
+                  {hasQualityMenu && (
+                    <button onClick={() => setActiveMenu("quality")} className="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-zinc-200 transition hover:bg-white/10">
                       <span>Quality</span>
-                      <span className="font-mono text-white/50">{manualQualityLabel || qualities[0]?.label}</span>
+                      <span className="flex items-center gap-1 text-zinc-500">
+                        {currentQualityLabel} <ChevronRight className="h-4 w-4" />
+                      </span>
                     </button>
-                  ) : levels.length > 0 ? (
-                    <button onClick={() => setActiveMenu("quality")} className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/10 transition cursor-pointer text-zinc-200">
-                      <span>Quality</span>
-                      <span className="font-mono text-white/50">{currentLevel === -1 ? "Auto" : `${levels[currentLevel]?.height}p`}</span>
-                    </button>
-                  ) : null}
-                </div>
+                  )}
+                </MenuShell>
               )}
 
               {activeMenu === "speed" && (
-                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
-                  <button onClick={() => setActiveMenu("main")} className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]">
-                    ← BACK
-                  </button>
+                <MenuShell className="w-44">
+                  <MenuBack onClick={() => setActiveMenu("main")} title="Playback speed" />
                   {SPEEDS.map((s) => (
-                    <button key={s} onClick={() => changeSpeed(s)} className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${s === speed ? "text-violet-400 font-bold" : "text-zinc-300"}`}>
-                      <span>{s}x</span>
-                      {s === speed && <Check className="w-3.5 h-3.5" />}
-                    </button>
+                    <MenuOption key={s} active={s === speed} onClick={() => changeSpeed(s)}>
+                      {s === 1 ? "Normal" : `${s}x`}
+                    </MenuOption>
                   ))}
-                </div>
-              )}
-
-              {activeMenu === "quality" && hasManualQualities && (
-                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
-                  <button onClick={() => setActiveMenu("main")} className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]">
-                    ← BACK
-                  </button>
-                  {qualities.map((q) => {
-                    const isActive = (manualQualityLabel || qualities[0]?.label) === q.label;
-                    return (
-                      <button
-                        key={q.label}
-                        onClick={() => handleQualitySelect(q.label)}
-                        className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${isActive ? "text-violet-400 font-bold" : "text-zinc-300"}`}
-                      >
-                        <span>{q.label}</span>
-                        {isActive && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {activeMenu === "quality" && !hasManualQualities && (
-                <div className="absolute bottom-8 right-0 bg-[#121216]/95 backdrop-blur-md border border-white/15 rounded-xl py-2 w-36 shadow-2xl z-20 text-xs">
-                  <button onClick={() => setActiveMenu("main")} className="w-full text-left px-4 py-1.5 text-white/40 hover:text-white border-b border-white/10 mb-1 transition cursor-pointer font-semibold text-[10px]">
-                    ← BACK
-                  </button>
-                  <button onClick={() => changeQuality(-1)} className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${currentLevel === -1 ? "text-violet-400 font-bold" : "text-zinc-300"}`}>
-                    <span>Auto</span>
-                    {currentLevel === -1 && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  {levels.map((lvl, index) => (
-                    <button key={index} onClick={() => changeQuality(index)} className={`w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/10 transition cursor-pointer font-mono ${currentLevel === index ? "text-violet-400 font-bold" : "text-zinc-300"}`}>
-                      <span>{lvl.height}p</span>
-                      {currentLevel === index && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  ))}
-                </div>
+                </MenuShell>
               )}
             </div>
 
-            <button onClick={togglePiP} className="hover:text-violet-400 transition cursor-pointer" title="Picture in Picture">
-              <PictureInPicture2 className="w-4.5 h-4.5" />
+            {activeMenu === "quality" && hasQualityMenu && (
+              <MenuShell className="w-48">
+                <MenuBack onClick={() => setActiveMenu("main")} title="Quality" />
+                {qualityOptions.map((o) => (
+                  <MenuOption key={o.key} active={o.active} hint={o.hint} onClick={o.onSelect}>
+                    {o.label}
+                  </MenuOption>
+                ))}
+              </MenuShell>
+            )}
+
+            <button onClick={togglePiP} className="cursor-pointer transition hover:text-violet-400" title="Picture in picture">
+              <PictureInPicture2 className="h-5 w-5" />
             </button>
 
-            <button onClick={toggleFullscreen} className="hover:text-violet-400 transition cursor-pointer">
-              {fullscreen ? <Minimize className="w-4.5 h-4.5" /> : <Maximize className="w-4.5 h-4.5" />}
+            <button onClick={toggleFullscreen} className="cursor-pointer transition hover:text-violet-400" title="Fullscreen (F)">
+              {fullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </button>
           </div>
         </div>
