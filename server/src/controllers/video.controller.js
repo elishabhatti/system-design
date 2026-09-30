@@ -26,6 +26,29 @@ export const uploadVideo = async (req, res) => {
   }
 };
 
+// NEW: lightweight status endpoint used by the upload page to poll until
+// the worker has produced the first HLS rendition.
+export const getVideoStatus = async (req, res) => {
+  try {
+    const result = await videoService.getVideoStatus({
+      videoId: req.params.id,
+      userId: req.userId,
+    });
+
+    if (result.status === "not_found") {
+      return res.status(404).json({ error: "Video not found." });
+    }
+    if (result.status === "forbidden") {
+      return res.status(403).json({ error: "You are not the owner of this video." });
+    }
+
+    return res.status(200).json({ success: true, video: result.video });
+  } catch (error) {
+    console.error("Error fetching video status:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 export const getVideos = async (req, res) => {
   try {
     const currentPort = process.env.PORT || 3000;
