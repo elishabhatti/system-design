@@ -56,11 +56,15 @@ async function bootstrap() {
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-  // Unexpected crashes: log karo, saaf tareeqe se band karo, exit code 1
+  // Ek library ka bhoola hua promise (jaise ek failed Cloudinary upload) poore
+  // API ko nahi girana chahiye. Log karo aur chalte raho; asli fix us jagah
+  // hai jahan rejection paida hota hai.
   process.on("unhandledRejection", (reason) => {
-    console.error("💥 Unhandled Rejection:", reason);
-    shutdown("unhandledRejection", 1);
+    console.error("⚠️ Unhandled Rejection (server keeps running):", reason);
   });
+
+  // uncaughtException ke baad process ki state bharosemand nahi hoti:
+  // yahan saaf tareeqe se band karke exit(1) hi sahi hai.
   process.on("uncaughtException", (err) => {
     console.error("💥 Uncaught Exception:", err);
     shutdown("uncaughtException", 1);
