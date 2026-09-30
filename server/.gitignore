@@ -9,3 +9,5 @@ dist/
 tmp/
 uploads/
 *.mp4
+
+public/hls/
