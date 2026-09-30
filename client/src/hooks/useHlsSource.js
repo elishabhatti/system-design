@@ -1,79 +1,105 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Hls from "hls.js";
 
-// Attaches `src` to the given video element, using hls.js for .m3u8 sources
-// when native HLS isn't supported. Handles quality levels and auto-recovers
-// from transient network/media errors; only a truly unrecoverable error
-// surfaces as `fatalError`.
-export function useHlsSource(videoRef, src, retryToken, { onSetupStart } = {}) {
+const isHlsUrl = (src) => /\.m3u8(\?|$)/i.test(src || "");
+
+/**
+ * Attaches `src` to the <video>.
+ *  - .m3u8 + hls.js support  -> adaptive streaming, starts on the LOWEST level
+ *  - .m3u8 + native (Safari) -> native HLS
+ *  - anything else (mp4)     -> plain src
+ *
+ * levels[i] = { height, bitrate }, index i matches hls.js level index
+ * (hls.js sorts levels by bitrate ascending).
+ */
+export function useHlsSource(videoRef, src, retryToken = 0, { onSetupStart } = {}) {
   const hlsRef = useRef(null);
+  const onSetupStartRef = useRef(onSetupStart);
+  onSetupStartRef.current = onSetupStart;
+
   const [levels, setLevels] = useState([]);
-  const [currentLevel, setCurrentLevel] = useState(-1); // -1 = Auto
+  const [currentLevel, setCurrentLevel] = useState(-1); // -1 = Auto (user's choice)
+  const [activeLevel, setActiveLevel] = useState(-1); // level actually playing now
   const [fatalError, setFatalError] = useState(false);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src) return;
+    const v = videoRef.current;
+    if (!v || !src) return;
 
+    onSetupStartRef.current?.();
     setLevels([]);
     setCurrentLevel(-1);
+    setActiveLevel(-1);
     setFatalError(false);
-    onSetupStart?.();
 
-    if (src.includes(".m3u8")) {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = src;
-        return;
-      }
-      if (Hls.isSupported()) {
-        const hls = new Hls();
-        hlsRef.current = hls;
-        hls.loadSource(src);
-        hls.attachMedia(video);
+    const tryPlay = () => v.play().catch(() => {}); // autoplay can be blocked; not an error
+    let hls = null;
 
-        hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-          setLevels(data.levels);
-          setCurrentLevel(hls.currentLevel);
-        });
+    if (isHlsUrl(src) && Hls.isSupported()) {
+      hls = new Hls({
+        startLevel: 0, // lowest rendition first => fast start, ABR ramps up
+        capLevelToPlayerSize: true, // don't fetch 1080p for a 480px player
+        maxBufferLength: 30,
+        startFragPrefetch: true,
+        enableWorker: true,
+      });
+      hlsRef.current = hls;
 
-        hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
-          setCurrentLevel(data.level);
-        });
+      let networkRetries = 0;
 
-        hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (!data.fatal) return;
+      hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+        setLevels(data.levels.map((l) => ({ height: l.height, bitrate: l.bitrate })));
+        tryPlay();
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => setActiveLevel(data.level));
+
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        networkRetries = 0;
+      });
+
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries < 3) {
+          networkRetries += 1;
+          setTimeout(() => hls.startLoad(), 1000 * networkRetries);
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+        } else {
           console.error("HLS fatal error:", data.type, data.details);
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              hls.destroy();
-              setFatalError(true);
-              break;
-          }
-        });
-
-        return () => {
           hls.destroy();
-          hlsRef.current = null;
-        };
-      }
+          setFatalError(true);
+        }
+      });
+
+      hls.loadSource(src);
+      hls.attachMedia(v);
     } else {
-      video.src = src;
+      // Native HLS (Safari) or a plain MP4
+      v.src = src;
+      tryPlay();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, retryToken]);
 
-  const changeQuality = (index) => {
-    if (hlsRef.current) {
-      hlsRef.current.currentLevel = index;
-      setCurrentLevel(index);
-    }
-  };
+    return () => {
+      if (hls) {
+        hls.destroy();
+        hlsRef.current = null;
+      } else {
+        v.removeAttribute("src");
+        v.load();
+      }
+    };
+  }, [videoRef, src, retryToken]);
 
-  return { levels, currentLevel, changeQuality, fatalError, setFatalError };
+  // index = level index, -1 = Auto
+  const changeQuality = useCallback((index) => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    hls.currentLevel = index;
+    setCurrentLevel(index);
+  }, []);
+
+  return { levels, currentLevel, activeLevel, changeQuality, fatalError, setFatalError };
 }
+
+export default useHlsSource;
