@@ -108,7 +108,13 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use(
   "/hls",
   express.static(path.join(process.cwd(), "public", "hls"), {
-    maxAge: isProd ? "1d" : 0,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".m3u8")) {
+        res.setHeader("Cache-Control", "no-cache"); // master/playlists badalti hain
+      } else if (filePath.endsWith(".ts")) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable"); // segments kabhi nahi badalte
+      }
+    },
   })
 );
 
