@@ -30,13 +30,21 @@ import { useShareModal, formatShareTime } from "../hooks/useShareModal";
 import { useToast } from "../hooks/useToast";
 import { useQualityOptions } from "../hooks/useQualityOptions";
 
-// Backend origin: HLS playlists/segments backend se serve hote hain.
-// Vite: VITE_API_URL | CRA use kar rahe ho to process.env.REACT_APP_API_URL likho.
-const API_ORIGIN = import.meta.env.VITE_API_URL || "http://localhost/";
+// Backend origin: HLS playlists/segments are served by the backend (via Nginx).
+// Normalised so it never ends with "/" or "/api" -- either would break the HLS URL.
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost")
+  .replace(/\/+$/, "")
+  .replace(/\/api$/, "");
 
-// HLS ready ho to master.m3u8 (adaptive), warna original MP4 (fallback).
+// Joins base + path with exactly ONE slash between them.
+// (Before: "http://localhost/" + "/hls/..." produced "//hls", which Express
+// does not match, so the playlist request 404'd.)
+const joinUrl = (base, path) =>
+  `${base.replace(/\/+$/, "")}/${String(path).replace(/^\/+/, "")}`;
+
+// HLS ready => master.m3u8 (adaptive), otherwise original MP4 (fallback).
 const getPlaybackSrc = (video) =>
-  video?.hlsPath ? `${API_ORIGIN}${video.hlsPath}` : video?.filepath;
+  video?.hlsPath ? joinUrl(API_ORIGIN, video.hlsPath) : video?.filepath;
 
 export default function VideoDetail() {
   const { id } = useParams();
@@ -279,9 +287,7 @@ export default function VideoDetail() {
 }
 
 // ---------------------------------------------------------------------------
-// Presentational sub-components (no logic — just rendering, kept in this
-// file since they're only used here; split out to their own files if they
-// grow or get reused).
+// Presentational sub-components (no logic, just rendering).
 // ---------------------------------------------------------------------------
 
 function AutoplayOverlay({ autoplayCountdown, nextVideo, onPlayNow, onCancel }) {
@@ -294,7 +300,8 @@ function AutoplayOverlay({ autoplayCountdown, nextVideo, onPlayNow, onCancel }) 
         </div>
         <div className="flex gap-3 items-center mb-4">
           <div className="w-24 aspect-video bg-black rounded-lg overflow-hidden shrink-0 border border-zinc-800">
-            <video src={nextVideo.filepath} className="w-full h-full object-cover" muted />
+            {/* preload="metadata": only the first frame, not the whole file */}
+            <video src={nextVideo.filepath} preload="metadata" className="w-full h-full object-cover" muted />
           </div>
           <h4 className="text-xs font-bold text-white leading-snug">{nextVideo.title}</h4>
         </div>
@@ -582,7 +589,8 @@ function UpNextSidebar({ videos, sidebarVideos, currentVideo, onSelect }) {
               }`}
             >
               <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
-                <video src={vid.filepath} className="w-full h-full object-cover" muted />
+                {/* preload="metadata": without it every sidebar item can download its whole MP4 */}
+                <video src={vid.filepath} preload="metadata" className="w-full h-full object-cover" muted />
                 <span className="absolute bottom-1 right-1 bg-black/90 text-[9px] px-1 rounded text-zinc-300 font-mono">
                   {vid.duration || "—"}
                 </span>
