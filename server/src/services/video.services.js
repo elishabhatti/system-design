@@ -1,6 +1,4 @@
-import fs from "fs"; // (hata do agar ab kahin use nahi, neeche dekho)
 import { Visibility } from "@prisma/client";
-import { v2 as cloudinary } from "cloudinary"; // config jahan pehle se hai wahin rahega
 import prisma from "../config/db.js";
 import redis from "../config/redis.js";
 import { videoQueue } from "../queues/videoQueues.js";
@@ -8,6 +6,15 @@ import { buildViewLockKey, CACHE_KEYS } from "../constants/cache.keys.js";
 
 const VIDEO_LIST_CACHE_TTL_SECONDS = 300;
 const VIEW_LOCK_TTL_SECONDS = 10;
+
+// Retries with backoff so a temporary Redis/Cloudinary/ffmpeg hiccup
+// doesn't permanently orphan a video or its storage.
+const JOB_OPTS = {
+  attempts: 5,
+  backoff: { type: "exponential", delay: 5000 },
+  removeOnComplete: 100,
+  removeOnFail: 500,
+};
 
 const videoOwnerSelect = {
   id: true,
@@ -76,7 +83,7 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
     data: {
       title: title || fileMeta.originalname,
       description: description || "",
-      filename: fileMeta.filename,
+      filename: fileMeta.filename, // Cloudinary public_id
       filepath: fileMeta.path,
       filesize: fileMeta.size,
       mimetype: fileMeta.mimetype,
@@ -95,20 +102,35 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
 
   await invalidateVideoListCache();
 
-  await videoQueue.add("processVideoUpload", {
-    videoId: video.id,
-    videoTitle: video.title,
-    userId,
-    filepath: video.filepath, // FFmpeg ke liye
-    filename: video.filename, // FFmpeg ke liye
-    senderInfo: {
-      id: video.user.id,
-      channelName: video.user.channelName,
-      avatarUrl: video.user.avatarUrl,
+  await videoQueue.add(
+    "processVideoUpload",
+    {
+      videoId: video.id,
+      videoTitle: video.title,
+      userId,
+      filepath: video.filepath,
+      filename: video.filename,
+      senderInfo: {
+        id: video.user.id,
+        channelName: video.user.channelName,
+        avatarUrl: video.user.avatarUrl,
+      },
     },
-  });
+    JOB_OPTS
+  );
 
   return video;
+};
+
+// ---------- Get one (used by the upload page to poll processing status) ----------
+export const getVideoStatus = async ({ videoId, userId }) => {
+  const video = await prisma.video.findUnique({
+    where: { id: videoId },
+    select: { id: true, title: true, isProcessed: true, hlsPath: true, userId: true },
+  });
+  if (!video) return { status: "not_found" };
+  if (video.userId !== userId) return { status: "forbidden" };
+  return { status: "ok", video };
 };
 
 // ---------- List ----------
@@ -121,7 +143,12 @@ export const listVideos = async () => {
   const videos = await prisma.video.findMany({
     where: {
       visibility: Visibility.PUBLIC,
-      OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }],
+      AND: [
+        { OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] },
+        // Don't list videos that can't be played yet. Legacy videos with
+        // manual `qualities` rows are still allowed.
+        { OR: [{ isProcessed: true }, { qualities: { some: {} } }] },
+      ],
     },
     include: {
       user: { select: videoOwnerSelect },
@@ -147,13 +174,18 @@ export const deleteVideoById = async ({ videoId, userId }) => {
 
   await prisma.video.delete({ where: { id: videoId } });
 
-  // Cloudinary se bhi hatao (best-effort: DB delete ho chuka, response na roko).
-  // filename = Cloudinary public_id
-  cloudinary.uploader
-    .destroy(video.filename, { resource_type: "video", invalidate: true })
-    .catch((err) =>
-      console.error(`Cloudinary delete failed for ${videoId}:`, err.message),
+  // Cloudinary + local HLS cleanup is a durable, retried queue job
+  // (see worker "deleteVideoAssets") instead of a fire-and-forget promise.
+  try {
+    await videoQueue.add(
+      "deleteVideoAssets",
+      { videoId, publicId: video.filename },
+      JOB_OPTS
     );
+  } catch (err) {
+    // DB row is already gone; log loudly so the orphan can be reconciled.
+    console.error(`[ORPHAN] Could not enqueue asset cleanup for ${videoId} (${video.filename}):`, err.message);
+  }
 
   await invalidateVideoListCache();
   return { status: "ok" };
@@ -165,15 +197,8 @@ export const incrementView = async ({ videoId, userId, io }) => {
 
   let acquiredLock = true;
   try {
-    acquiredLock = await redis.set(
-      lockKey,
-      "locked",
-      "EX",
-      VIEW_LOCK_TTL_SECONDS,
-      "NX",
-    );
+    acquiredLock = await redis.set(lockKey, "locked", "EX", VIEW_LOCK_TTL_SECONDS, "NX");
   } catch (err) {
-    // Redis down: unique constraint (userId, videoId) waise bhi duplicate rokta hai
     console.error("Redis lock failed:", err.message);
   }
 
@@ -188,7 +213,6 @@ export const incrementView = async ({ videoId, userId, io }) => {
   };
 
   try {
-    // Dono kaam ek saath ya dono nahi
     const [, updatedVideo] = await prisma.$transaction([
       prisma.view.create({ data: { userId, videoId } }),
       prisma.video.update({
@@ -199,20 +223,16 @@ export const incrementView = async ({ videoId, userId, io }) => {
     ]);
 
     if (io) {
-      io.to(`video_${videoId}`).emit("view_updated", {
-        views: updatedVideo.views,
-      });
+      io.to(`video_${videoId}`).emit("view_updated", { views: updatedVideo.views });
     }
 
-    // Deliberately videos:all invalidate nahi: views har request par
-    // badalte hain, cache bekaar ho jata. TTL tak staleness theek hai.
     return { status: "ok", views: updatedVideo.views };
   } catch (error) {
     if (error.code === "P2002") {
       return { status: "already_viewed", views: await currentViews() };
     }
     if (error.code === "P2003" || error.code === "P2025") {
-      return { status: "not_found" }; // video exist nahi karti
+      return { status: "not_found" };
     }
     throw error;
   } finally {
@@ -229,7 +249,6 @@ export const toggleLike = async ({ videoId, userId, io }) => {
 
   if (!video) return { status: "not_found" };
 
-  // Pehle unlike try karo: agar row thi to delete ho jayegi (1 query, race-safe)
   const removed = await prisma.like.deleteMany({ where: { userId, videoId } });
 
   let isLiked = false;
@@ -239,7 +258,6 @@ export const toggleLike = async ({ videoId, userId, io }) => {
       await prisma.like.create({ data: { userId, videoId } });
       isLiked = true;
 
-      // Apni video like karo to notification nahi
       if (video.userId !== userId) {
         const notification = await prisma.notification.create({
           data: {
@@ -254,7 +272,6 @@ export const toggleLike = async ({ videoId, userId, io }) => {
         if (io) io.to(video.userId).emit("newNotification", notification);
       }
     } catch (error) {
-      // Double-click race: dusri request ne like pehle bana di
       if (error.code === "P2002") {
         isLiked = true;
       } else {
