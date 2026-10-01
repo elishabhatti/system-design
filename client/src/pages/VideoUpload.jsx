@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { uploadVideo, getVideoById } from "../services/api";
 import {
   CheckCircle2,
+  Circle,
   Globe,
   Lock,
   Clock,
@@ -32,17 +33,34 @@ const VISIBILITY = [
   { key: "schedule", label: "Schedule", hint: "Goes public at a set time", icon: Clock },
 ];
 
-const inputCls =
-  "w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-white/40 focus:bg-white/[0.05]";
+const SUBMIT_LABEL = {
+  private: "Save as private",
+  public: "Publish video",
+  schedule: "Schedule video",
+};
 
-function Field({ label, htmlFor, children }) {
+const inputCls =
+  "w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-500";
+
+function Field({ label, htmlFor, aside, children }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-white/70">
-        {label}
-      </label>
+      <div className="mb-1.5 flex items-center justify-between">
+        <label htmlFor={htmlFor} className="text-sm font-medium text-zinc-300">
+          {label}
+        </label>
+        {aside && <span className="text-[11px] tabular-nums text-zinc-600">{aside}</span>}
+      </div>
       {children}
     </div>
+  );
+}
+
+function SectionTitle({ children }) {
+  return (
+    <h2 className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+      {children}
+    </h2>
   );
 }
 
@@ -53,24 +71,40 @@ function Toggle({ checked, onChange, label, hint }) {
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-3 text-left transition hover:border-white/25"
+      className="flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-3 text-left transition hover:border-zinc-700"
     >
       <span>
-        <span className="block text-sm text-white/90">{label}</span>
-        {hint && <span className="block text-xs text-white/40">{hint}</span>}
+        <span className="block text-sm text-zinc-200">{label}</span>
+        {hint && <span className="block text-xs text-zinc-500">{hint}</span>}
       </span>
       <span
         className={`relative h-6 w-10 shrink-0 rounded-full border transition ${
-          checked ? "border-white bg-white" : "border-white/20 bg-black/60"
+          checked ? "border-white bg-white" : "border-zinc-700 bg-black"
         }`}
       >
         <span
           className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full transition-transform ${
-            checked ? "translate-x-4 bg-black" : "bg-white/50"
+            checked ? "translate-x-4 bg-black" : "bg-zinc-500"
           }`}
         />
       </span>
     </button>
+  );
+}
+
+function StepRow({ state, children }) {
+  // state: "done" | "active" | "idle"
+  return (
+    <li
+      className={`flex items-center gap-3 text-sm ${
+        state === "idle" ? "text-zinc-600" : state === "active" ? "text-zinc-300" : "text-white"
+      }`}
+    >
+      {state === "done" && <CheckCircle2 className="h-4 w-4 shrink-0 text-white" />}
+      {state === "active" && <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
+      {state === "idle" && <Circle className="h-4 w-4 shrink-0" />}
+      {children}
+    </li>
   );
 }
 
@@ -112,37 +146,22 @@ function ProcessingPanel({ data, onWatch, onAnother }) {
   }, [data?.id, ready]);
 
   return (
-    <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-[#0b0b0d] p-8">
-      <div className="mb-6 flex items-center gap-3">
-        {ready ? (
-          <CheckCircle2 className="h-7 w-7 text-emerald-400" />
-        ) : (
-          <Loader2 className="h-7 w-7 animate-spin text-white/70" />
-        )}
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold text-white">
-            {ready ? "Ready to watch" : "Preparing your video"}
-          </h2>
-          <p className="truncate text-sm text-white/50">{data?.title || "Your video"}</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-md rounded-2xl border border-zinc-800 bg-[#0a0a0a] p-8">
+      <h2 className="text-xl font-semibold tracking-tight text-white">
+        {ready ? "Ready to watch" : "Preparing your video"}
+      </h2>
+      <p className="mt-1 truncate text-sm text-zinc-500">{data?.title || "Your video"}</p>
 
-      <ol className="mb-6 space-y-3 text-sm">
-        <li className="flex items-center gap-2 text-white/80">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Uploaded
-        </li>
-        <li className={`flex items-center gap-2 ${ready ? "text-white/80" : "text-white/60"}`}>
-          {ready ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          ) : (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          )}
+      <ol className="my-8 space-y-4">
+        <StepRow state="done">Uploaded</StepRow>
+        <StepRow state={ready ? "done" : "active"}>
           Creating streaming versions (240p to 1080p)
-        </li>
+        </StepRow>
+        <StepRow state={ready ? "done" : "idle"}>Ready to play</StepRow>
       </ol>
 
       {!ready && !timedOut && (
-        <p className="mb-6 text-xs leading-relaxed text-white/40">
+        <p className="mb-6 text-xs leading-relaxed text-zinc-500">
           Playback unlocks as soon as the first version is ready. Higher qualities keep
           appearing in the background. You can leave this page; processing continues.
         </p>
@@ -158,13 +177,13 @@ function ProcessingPanel({ data, onWatch, onAnother }) {
         <button
           onClick={() => onWatch(data.id)}
           disabled={!ready}
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <Play className="h-4 w-4 fill-black" /> Watch video
         </button>
         <button
           onClick={onAnother}
-          className="w-full cursor-pointer rounded-xl border border-white/10 py-2.5 text-sm text-white/70 transition hover:border-white/25 hover:text-white"
+          className="w-full cursor-pointer rounded-xl border border-zinc-800 py-2.5 text-sm text-zinc-400 transition hover:border-zinc-600 hover:text-white"
         >
           Upload another video
         </button>
@@ -287,10 +306,10 @@ export default function VideoUpload() {
   const sizeMb = file ? (file.size / (1024 * 1024)).toFixed(1) : null;
 
   return (
-    <div className="mx-auto my-8 max-w-5xl px-4">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Upload video</h1>
-        <p className="mt-1 text-sm text-white/50">
+        <p className="mt-1 text-sm text-zinc-500">
           We create 240p to 1080p versions automatically, so viewers start fast on any connection.
         </p>
       </header>
@@ -304,24 +323,29 @@ export default function VideoUpload() {
       ) : (
         <form
           onSubmit={handleSubmit}
-          className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"
+          className="grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"
         >
           {/* Left: file */}
-          <div className="lg:sticky lg:top-6 lg:self-start">
+          <div className="lg:sticky lg:top-20 lg:self-start">
             {file && previewUrl ? (
-              <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-                <video src={previewUrl} controls playsInline className="aspect-video w-full bg-black object-contain" />
-                <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
-                  <div className="flex min-w-0 items-center gap-2 text-sm text-white/80">
-                    <Film className="h-4 w-4 shrink-0 text-white/40" />
+              <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-black">
+                <video
+                  src={previewUrl}
+                  controls
+                  playsInline
+                  className="aspect-video w-full bg-black object-contain"
+                />
+                <div className="flex items-center justify-between gap-3 border-t border-zinc-900 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2 text-sm text-zinc-300">
+                    <Film className="h-4 w-4 shrink-0 text-zinc-600" />
                     <span className="truncate">{file.name}</span>
-                    <span className="shrink-0 text-white/40">{sizeMb} MB</span>
+                    <span className="shrink-0 text-zinc-600">{sizeMb} MB</span>
                   </div>
                   <button
                     type="button"
                     disabled={loading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/80 transition hover:border-white/30 hover:text-white disabled:opacity-40"
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-zinc-600 hover:text-white disabled:opacity-40"
                   >
                     <RefreshCw className="h-3.5 w-3.5" /> Replace
                   </button>
@@ -331,6 +355,7 @@ export default function VideoUpload() {
               <div
                 role="button"
                 tabIndex={0}
+                aria-label="Choose a video file to upload"
                 onClick={() => fileInputRef.current?.click()}
                 onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileInputRef.current?.click()}
                 onDragOver={(e) => {
@@ -347,15 +372,19 @@ export default function VideoUpload() {
                 }}
                 className={`flex aspect-video w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 text-center outline-none transition focus-visible:border-white/60 ${
                   dragActive
-                    ? "border-white/60 bg-white/[0.07]"
-                    : "border-white/20 bg-white/[0.02] hover:border-white/40 hover:bg-white/[0.04]"
+                    ? "border-white/60 bg-zinc-900"
+                    : "border-zinc-700 bg-zinc-950 hover:border-zinc-500 hover:bg-zinc-900/60"
                 }`}
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-white/60">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
                   <UploadCloud className="h-6 w-6" />
                 </span>
-                <span className="text-sm font-medium text-white/90">Drop a video here, or click to browse</span>
-                <span className="text-xs text-white/40">MP4, MOV or WEBM, up to {MAX_SIZE_MB} MB</span>
+                <span className="text-sm font-medium text-zinc-200">
+                  Drop a video here, or click to browse
+                </span>
+                <span className="text-xs text-zinc-600">
+                  MP4, MOV or WEBM, up to {MAX_SIZE_MB} MB
+                </span>
               </div>
             )}
             <input
@@ -371,11 +400,11 @@ export default function VideoUpload() {
           </div>
 
           {/* Right: details */}
-          <div className="space-y-8">
+          <div className="space-y-9">
             <section className="space-y-4">
-              <h2 className="text-base font-semibold text-white">Details</h2>
+              <SectionTitle>Details</SectionTitle>
 
-              <Field label="Title" htmlFor="title">
+              <Field label="Title" htmlFor="title" aside={`${title.length}/100`}>
                 <input
                   id="title"
                   type="text"
@@ -405,7 +434,7 @@ export default function VideoUpload() {
                     id="category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className={`${inputCls} cursor-pointer bg-[#0c0c0e]`}
+                    className={`${inputCls} cursor-pointer`}
                   >
                     {CATEGORIES.map((c) => (
                       <option key={c.value} value={c.value}>
@@ -428,7 +457,7 @@ export default function VideoUpload() {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-base font-semibold text-white">Audience</h2>
+              <SectionTitle>Audience</SectionTitle>
               <Toggle checked={isMadeForKids} onChange={setIsMadeForKids} label="Made for kids" />
               <Toggle
                 checked={ageRestricted}
@@ -438,7 +467,7 @@ export default function VideoUpload() {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-base font-semibold text-white">Visibility</h2>
+              <SectionTitle>Visibility</SectionTitle>
               <div className="grid gap-2.5 sm:grid-cols-3" role="radiogroup" aria-label="Visibility">
                 {VISIBILITY.map(({ key, label, hint, icon: Icon }) => {
                   const active = visibility === key;
@@ -449,13 +478,20 @@ export default function VideoUpload() {
                       role="radio"
                       aria-checked={active}
                       onClick={() => setVisibility(key)}
-                      className={`cursor-pointer rounded-xl border p-3 text-left transition ${
+                      className={`relative cursor-pointer rounded-xl border p-3.5 text-left transition ${
                         active
-                          ? "border-white/50 bg-white/10 text-white"
-                          : "border-white/10 bg-white/[0.02] text-white/50 hover:border-white/25 hover:text-white/80"
+                          ? "border-white bg-zinc-900 text-white"
+                          : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
                       }`}
                     >
-                      <Icon className="mb-2 h-4 w-4" />
+                      <span
+                        className={`absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full border ${
+                          active ? "border-white" : "border-zinc-700"
+                        }`}
+                      >
+                        {active && <span className="h-2 w-2 rounded-full bg-white" />}
+                      </span>
+                      <Icon className="mb-3 h-4 w-4" />
                       <span className="block text-sm font-medium">{label}</span>
                       <span className="mt-0.5 block text-xs opacity-70">{hint}</span>
                     </button>
@@ -477,7 +513,10 @@ export default function VideoUpload() {
             </section>
 
             {error && (
-              <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-300">
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-300"
+              >
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -487,7 +526,7 @@ export default function VideoUpload() {
               <button
                 type="submit"
                 disabled={loading || !file}
-                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? (
                   <>
@@ -495,13 +534,13 @@ export default function VideoUpload() {
                     {progress < 100 ? `Uploading ${progress}%` : "Saving to cloud storage"}
                   </>
                 ) : (
-                  "Publish video"
+                  SUBMIT_LABEL[visibility]
                 )}
               </button>
 
               {loading && (
                 <div
-                  className="h-1.5 w-full overflow-hidden rounded-full bg-white/10"
+                  className="h-1 w-full overflow-hidden rounded-full bg-zinc-800"
                   role="progressbar"
                   aria-valuenow={progress}
                   aria-valuemin={0}
