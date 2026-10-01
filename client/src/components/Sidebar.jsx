@@ -1,24 +1,71 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useSidebar } from '../context/SidebarContext';
-import { 
-  Home, 
-  Clapperboard, 
-  Tv, 
-  User, 
-  History, 
-  PlaySquare, 
-  Clock, 
-  ThumbsUp, 
-  Video, 
-  Download, 
-  Flame, 
-  Music, 
-  Gamepad2, 
-  ChevronRight,
+import React, { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useSidebar } from "../context/SidebarContext";
+import {
+  Home,
+  Clapperboard,
+  Tv,
+  User,
+  History,
+  PlaySquare,
+  Clock,
+  ThumbsUp,
+  Video,
+  Download,
+  Flame,
+  Music,
+  Gamepad2,
   Trophy,
-  Lightbulb
-} from 'lucide-react';
+  Lightbulb,
+} from "lucide-react";
+
+const MAIN_LINKS = [
+  { path: "/", label: "Home", icon: Home },
+  { path: "/shorts", label: "Shorts", icon: Clapperboard },
+  { path: "/subscriptions", label: "Subscriptions", icon: Tv },
+];
+
+const YOU_LINKS = [
+  { path: "/profile", label: "Your channel", icon: User },
+  { path: "/history", label: "History", icon: History },
+  { path: "/playlists", label: "Playlists", icon: PlaySquare },
+  { path: "/my-videos", label: "Your videos", icon: Video },
+  { path: "/watch-later", label: "Watch later", icon: Clock },
+  { path: "/liked-videos", label: "Liked videos", icon: ThumbsUp },
+  { path: "/downloads", label: "Downloads", icon: Download },
+];
+
+const EXPLORE_LINKS = [
+  { label: "Trending", icon: Flame },
+  { label: "Music", icon: Music },
+  { label: "Gaming", icon: Gamepad2 },
+  { label: "Sports", icon: Trophy },
+  { label: "Learning", icon: Lightbulb },
+];
+
+function SectionLabel({ children }) {
+  return (
+    <p className="px-3 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+      {children}
+    </p>
+  );
+}
+
+function NavItem({ to, label, icon: Icon, active }) {
+  return (
+    <Link
+      to={to}
+      className={`flex items-center gap-3.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+        active
+          ? "bg-zinc-900 text-white"
+          : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
+      }`}
+    >
+      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2 : 1.6} />
+      <span className="truncate">{label}</span>
+    </Link>
+  );
+}
 
 export default function Sidebar() {
   const { isSidebarOpen } = useSidebar();
@@ -29,204 +76,128 @@ export default function Sidebar() {
 
   // Fetch real subscriptions from API if available
   useEffect(() => {
-    import("../services/api").then(({ fetchSubscriptions }) => {
-      if (fetchSubscriptions) {
-        fetchSubscriptions()
-          .then((res) => {
-            if (Array.isArray(res)) setSubscriptions(res);
-            else if (res?.subscriptions) setSubscriptions(res.subscriptions);
-          })
-          .catch(() => {});
-      }
-    }).catch(() => {});
+    import("../services/api")
+      .then(({ fetchSubscriptions }) => {
+        if (fetchSubscriptions) {
+          fetchSubscriptions()
+            .then((res) => {
+              if (Array.isArray(res)) setSubscriptions(res);
+              else if (res?.subscriptions) setSubscriptions(res.subscriptions);
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  const iconClass = "w-5 h-5 stroke-[1.5px]"; 
-
-  const mainLinks = [
-    { path: '/', label: 'Home', icon: Home },
-    { path: '/shorts', label: 'Shorts', icon: Clapperboard },
-    { path: '/subscriptions', label: 'Subscriptions', icon: Tv },
-  ];
-
-  const youLinks = [
-    { path: '/profile', label: 'Your channel', icon: User },
-    { path: '/history', label: 'History', icon: History },
-    { path: '/playlists', label: 'Playlists', icon: PlaySquare },
-    { path: '/my-videos', label: 'Your videos', icon: Video },
-    { path: '/watch-later', label: 'Watch later', icon: Clock },
-    { path: '/liked-videos', label: 'Liked videos', icon: ThumbsUp },
-    { path: '/downloads', label: 'Downloads', icon: Download },
-  ];
-
-  const exploreLinks = [
-    { label: 'Trending', icon: Flame },
-    { label: 'Music', icon: Music },
-    { label: 'Gaming', icon: Gamepad2 },
-    { label: 'Sports', icon: Trophy },
-    { label: 'Learning', icon: Lightbulb },
-  ];
-
-  // Collapsed Sidebar View (Mini Sidebar)
+  // ---------- Collapsed (mini) ----------
   if (!isSidebarOpen) {
+    const miniLinks = [...MAIN_LINKS, { path: "/profile", label: "You", icon: User }];
+
     return (
-      <aside className="w-18 bg-black text-zinc-100 flex-col items-center py-2 sticky top-14 h-[calc(100vh-3.5rem)] hidden md:flex shrink-0 z-10 border-r border-zinc-900">
-        <div className="flex flex-col w-full gap-1">
-          {mainLinks.map((link) => {
-            const Icon = link.icon;
-            const active = isActive(link.path);
-            return (
-              <Link 
-                to={link.path} 
-                key={link.path}
-                title={link.label}
-                className={`flex flex-col items-center justify-center py-4 px-1 mx-2 rounded-xl transition-colors ${
-                  active 
-                    ? 'bg-zinc-900 text-white font-medium border border-zinc-800' 
-                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-                }`}
-              >
-                <Icon className={`${iconClass} mb-1.5 ${active ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
-                <span className="text-[10px] truncate w-full text-center tracking-tight leading-none">{link.label}</span>
-              </Link>
-            );
-          })}
-          
-          <Link 
-            to="/profile"
-            title="You"
-            className={`flex flex-col items-center justify-center py-4 px-1 mx-2 rounded-xl transition-colors ${
-              isActive('/profile') 
-                ? 'bg-zinc-900 text-white font-medium border border-zinc-800' 
-                : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-            }`}
-          >
-            <User className={`${iconClass} mb-1.5 ${isActive('/profile') ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
-            <span className="text-[10px] truncate w-full text-center tracking-tight leading-none">You</span>
-          </Link>
-        </div>
+      <aside className="sticky top-14 z-10 hidden h-[calc(100vh-3.5rem)] w-[72px] shrink-0 flex-col items-center gap-1 border-r border-zinc-900 bg-[#09090b] px-1.5 py-2 md:flex">
+        {miniLinks.map(({ path, label, icon: Icon }) => {
+          const active = isActive(path);
+          return (
+            <Link
+              key={label}
+              to={path}
+              title={label}
+              className={`flex w-full flex-col items-center gap-1.5 rounded-lg py-3 transition ${
+                active
+                  ? "bg-zinc-900 text-white"
+                  : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
+              }`}
+            >
+              <Icon className="h-5 w-5" strokeWidth={active ? 2 : 1.6} />
+              <span className="w-full truncate text-center text-[10px] leading-none">
+                {label}
+              </span>
+            </Link>
+          );
+        })}
       </aside>
     );
   }
 
-  // Expanded Sidebar View (Full Orbit Style)
+  // ---------- Expanded ----------
   return (
-    <aside className="w-[240px] bg-black text-zinc-100 flex-col p-3 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden hidden md:flex shrink-0 z-10 border-r border-zinc-900 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent pr-2 transition-all">
-      
-      {/* Main Section */}
-      <div className="pb-3 border-b border-zinc-900">
-        {mainLinks.map((link) => {
-          const Icon = link.icon;
-          const active = isActive(link.path);
-          return (
-            <Link 
-              to={link.path} 
-              key={link.path}
-              className={`flex items-center gap-4 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
-                active 
-                  ? 'bg-zinc-900 text-white border border-zinc-800' 
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <Icon className={`${iconClass} ${active ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
-              <span className="truncate">{link.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+    <aside className="sticky top-14 z-10 hidden h-[calc(100vh-3.5rem)] w-60 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-zinc-900 bg-[#09090b] px-2 py-3 md:flex">
+      {/* Main */}
+      <nav className="space-y-0.5 pb-3">
+        {MAIN_LINKS.map((l) => (
+          <NavItem key={l.path} to={l.path} label={l.label} icon={l.icon} active={isActive(l.path)} />
+        ))}
+      </nav>
 
-      {/* You Section */}
-      <div className="py-3 border-b border-zinc-900">
-        <Link 
-          to="/profile" 
-          className="flex items-center gap-2 px-3 py-2 mb-1 text-xs font-bold uppercase tracking-wider text-zinc-300 hover:bg-zinc-900 rounded-xl transition-colors group"
-        >
-          You <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
-        </Link>
-        
-        {youLinks.map((item, idx) => {
-          const Icon = item.icon;
-          const active = isActive(item.path);
-          return (
-            <Link 
-              to={item.path} 
-              key={idx}
-              className={`flex items-center gap-4 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                active 
-                  ? 'bg-zinc-900 text-white border border-zinc-800' 
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <Icon className={`${iconClass} ${active ? 'fill-white stroke-white stroke-[1px]' : ''}`} />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+      {/* You */}
+      <nav className="space-y-0.5 border-t border-zinc-900 py-3">
+        <SectionLabel>You</SectionLabel>
+        {YOU_LINKS.map((l) => (
+          <NavItem key={l.path} to={l.path} label={l.label} icon={l.icon} active={isActive(l.path)} />
+        ))}
+      </nav>
 
-      {/* Subscriptions Section */}
-      <div className="py-3 border-b border-zinc-900">
-        <p className="px-3 py-1 mb-1 text-xs font-bold uppercase tracking-wider text-zinc-300">Subscriptions</p>
-        
+      {/* Subscriptions */}
+      <div className="space-y-0.5 border-t border-zinc-900 py-3">
+        <SectionLabel>Subscriptions</SectionLabel>
+
         {subscriptions.length > 0 ? (
-          subscriptions.map((sub, idx) => (
-            <Link 
-              to={`/channel/${sub.id || sub.channelName}`} 
-              key={idx}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors cursor-pointer"
-            >
-              <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[11px] font-bold text-white shrink-0 overflow-hidden">
-                {sub.avatarUrl ? (
-                  <img src={sub.avatarUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  (sub.channelName || sub.name)?.[0]?.toUpperCase() || 'C'
-                )}
-              </div>
-              <span className="truncate text-left w-full">{sub.channelName || sub.name}</span>
-            </Link>
-          ))
+          subscriptions.map((sub, idx) => {
+            const name = sub.channelName || sub.name;
+            const to = `/channel/${sub.id || sub.channelName}`;
+            return (
+              <Link
+                key={sub.id || idx}
+                to={to}
+                className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium transition ${
+                  isActive(to)
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
+                }`}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-[11px] font-semibold text-zinc-200">
+                  {sub.avatarUrl ? (
+                    <img src={sub.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    name?.[0]?.toUpperCase() || "C"
+                  )}
+                </span>
+                <span className="truncate">{name}</span>
+              </Link>
+            );
+          })
         ) : (
-          <div className="px-3 py-2 text-xs text-zinc-600 font-medium italic">
-            No subscriptions yet
-          </div>
+          <p className="px-3 py-1.5 text-xs text-zinc-600">No subscriptions yet</p>
         )}
       </div>
 
-      {/* Explore Section */}
-      <div className="py-3 border-b border-zinc-900">
-        <p className="px-3 py-1 mb-1 text-xs font-bold uppercase tracking-wider text-zinc-300">Explore</p>
-        {exploreLinks.map((item, idx) => {
-          const Icon = item.icon;
-          return (
-            <button 
-              key={idx}
-              className="w-full flex items-center gap-4 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:bg-zinc-900 hover:text-white transition-colors cursor-pointer"
-            >
-              <Icon className={iconClass} />
-              <span className="truncate text-left">{item.label}</span>
-            </button>
-          );
-        })}
+      {/* Explore */}
+      <div className="space-y-0.5 border-t border-zinc-900 py-3">
+        <SectionLabel>Explore</SectionLabel>
+        {EXPLORE_LINKS.map(({ label, icon: Icon }) => (
+          <button
+            key={label}
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-3.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-zinc-400 transition hover:bg-zinc-900/60 hover:text-white"
+          >
+            <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.6} />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Footer Links */}
-      <div className="px-3 py-4 text-[11px] text-zinc-600 font-medium flex flex-col gap-2">
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-          <a href="#" className="hover:text-zinc-400">About</a>
-          <a href="#" className="hover:text-zinc-400">Press</a>
-          <a href="#" className="hover:text-zinc-400">Copyright</a>
-          <a href="#" className="hover:text-zinc-400">Contact us</a>
-          <a href="#" className="hover:text-zinc-400">Creators</a>
-          <a href="#" className="hover:text-zinc-400">Developers</a>
+      {/* Footer */}
+      <div className="mt-auto space-y-2 border-t border-zinc-900 px-3 pt-4 text-[11px] text-zinc-600">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <a href="#" className="transition hover:text-zinc-400">About</a>
+          <a href="#" className="transition hover:text-zinc-400">Contact</a>
+          <a href="#" className="transition hover:text-zinc-400">Terms</a>
+          <a href="#" className="transition hover:text-zinc-400">Privacy</a>
+          <a href="#" className="transition hover:text-zinc-400">Policy &amp; Safety</a>
         </div>
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-          <a href="#" className="hover:text-zinc-400">Terms</a>
-          <a href="#" className="hover:text-zinc-400">Privacy</a>
-          <a href="#" className="hover:text-zinc-400">Policy & Safety</a>
-        </div>
-        <p className="text-[10px] text-zinc-700 font-mono mt-1">© 2026 Orbit Studio</p>
+        <p className="text-zinc-700">© 2026 Orbit</p>
       </div>
-
     </aside>
   );
 }
