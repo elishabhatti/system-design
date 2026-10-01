@@ -1,212 +1,223 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Sparkles,
-  Flame,
-  Music,
-  Gamepad2,
-  Laptop,
-  GraduationCap,
-  Smile,
-  Radio,
-  Film,
-  Tv,
-  Headphones,
-  Zap,
-  Code2,
-  BrainCircuit,
-  MoreVertical,
-  Eye,
-  Play,
-} from "lucide-react";
+import { Eye, MoreVertical, WifiOff, RefreshCw } from "lucide-react";
+import { fetchVideos } from "../services/api";
 
-const categories = [
-  { name: "All", icon: Sparkles },
-  { name: "Music", icon: Music },
-  { name: "Mixes", icon: Flame },
-  { name: "Gaming", icon: Gamepad2 },
-  { name: "Tech", icon: Laptop },
-  { name: "Education", icon: GraduationCap },
-  { name: "Comedy", icon: Smile },
-  { name: "Live", icon: Radio },
-  { name: "Cartoon", icon: Film },
-  { name: "Anime", icon: Tv },
-  { name: "Beats", icon: Headphones },
-  { name: "Phonk", icon: Zap },
-  { name: "Programming", icon: Code2 },
-  { name: "Thoughts", icon: BrainCircuit },
+const CATEGORIES = [
+  "All",
+  "Music",
+  "Gaming",
+  "Technology",
+  "Education",
+  "Programming",
+  "Comedy",
+  "Live",
+  "Anime",
+  "Thoughts",
 ];
 
+const compactNumber = new Intl.NumberFormat("en", { notation: "compact" });
+
 const timeAgo = (dateString) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const seconds = Math.floor((now - date) / 1000);
-
-  let interval = Math.floor(seconds / 31536000);
-  if (interval > 1) return `${interval} years ago`;
-  if (interval === 1) return `1 year ago`;
-
-  interval = Math.floor(seconds / 2592000);
-  if (interval > 1) return `${interval} months ago`;
-  if (interval === 1) return `1 month ago`;
-
-  interval = Math.floor(seconds / 86400);
-  if (interval > 1) return `${interval} days ago`;
-  if (interval === 1) return `1 day ago`;
-
-  interval = Math.floor(seconds / 3600);
-  if (interval > 1) return `${interval} hours ago`;
-  if (interval === 1) return `1 hour ago`;
-
-  interval = Math.floor(seconds / 60);
-  if (interval > 1) return `${interval} minutes ago`;
-  if (interval === 1) return `1 minute ago`;
-
+  if (!dateString) return "";
+  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+  const units = [
+    [31536000, "year"],
+    [2592000, "month"],
+    [86400, "day"],
+    [3600, "hour"],
+    [60, "minute"],
+  ];
+  for (const [size, name] of units) {
+    const n = Math.floor(seconds / size);
+    if (n >= 1) return `${n} ${name}${n > 1 ? "s" : ""} ago`;
+  }
   return "Just now";
 };
+
+function VideoCardSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="aspect-video rounded-xl bg-zinc-900" />
+      <div className="mt-3 flex gap-3">
+        <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-900" />
+        <div className="flex-1 space-y-2 pt-1">
+          <div className="h-3 w-11/12 rounded bg-zinc-900" />
+          <div className="h-3 w-1/2 rounded bg-zinc-900" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VideoCard({ vid }) {
+  const channelName = vid.user?.channelName || "Unknown channel";
+  const avatarUrl = vid.user?.avatarUrl;
+
+  return (
+    <Link to={`/watch/${vid.id}`} className="group block">
+      {/* Thumbnail */}
+      <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900">
+        <video
+          src={vid.filepath ? `${vid.filepath}#t=0.5` : undefined}
+          preload="metadata"
+          muted
+          loop
+          playsInline
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+          onMouseLeave={(e) => {
+            e.currentTarget.pause();
+            e.currentTarget.currentTime = 0.5;
+          }}
+        />
+
+        {vid.isLive ? (
+          <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black" />
+            Live
+          </span>
+        ) : (
+          vid.duration && (
+            <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">
+              {vid.duration}
+            </span>
+          )
+        )}
+      </div>
+
+      {/* Meta */}
+      <div className="mt-3 flex gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-xs font-semibold text-zinc-200">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            channelName[0].toUpperCase()
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="line-clamp-2 text-[14px] font-medium leading-snug text-white">
+            {vid.title}
+          </h3>
+          <p className="mt-1 truncate text-[13px] text-zinc-400">{channelName}</p>
+          <p className="flex items-center gap-1.5 text-[13px] text-zinc-500">
+            <span>{compactNumber.format(vid.views ?? 0)} views</span>
+            {vid.uploadedAt && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{timeAgo(vid.uploadedAt)}</span>
+              </>
+            )}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          aria-label="More options"
+          onClick={(e) => e.preventDefault()}
+          className="h-8 w-8 shrink-0 rounded-full text-zinc-400 opacity-0 transition hover:bg-zinc-800 hover:text-white group-hover:opacity-100 flex items-center justify-center"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      </div>
+    </Link>
+  );
+}
 
 export default function Home() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
 
-  useEffect(() => {
-    import("../services/api").then(({ fetchVideos }) => {
-      fetchVideos()
-        .then((response) => {
-          if (response && response.videos && response.videos.length > 0) {
-            setVideos(response.videos);
-          } else if (Array.isArray(response)) {
-            setVideos(response);
-          } 
-        })
-        .catch((err) => {
-          console.warn("API error, loading dummy feed.", err);
-        })
-        .finally(() => setLoading(false));
-    });
-  }, []);
+  const load = () => {
+    setLoading(true);
+    setError(false);
+    fetchVideos()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.videos || res?.data || [];
+        setVideos(list);
+      })
+      .catch((err) => {
+        console.error("Failed to load feed", err);
+        setError(true);
+      })
+      .finally(() => setLoading(false));
+  };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-black">
-        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-zinc-400 mt-3 font-mono tracking-wider uppercase">
-          Initializing Stream feed...
-        </p>
-      </div>
+  useEffect(load, []);
+
+  const visibleVideos = useMemo(() => {
+    if (activeCategory === "All") return videos;
+    const wanted = activeCategory.toLowerCase();
+    return videos.filter(
+      (v) =>
+        v.category?.toLowerCase() === wanted ||
+        v.tags?.toString().toLowerCase().includes(wanted)
     );
-  }
+  }, [videos, activeCategory]);
 
   return (
-    <div className="px-6 py-6 text-zinc-100 max-w-[1800px] mx-auto bg-black">
-      {/* Filter Chips Bar */}
-      <div className="flex items-center gap-2.5 overflow-x-auto pb-4 pt-1 mb-8 scrollbar-none sticky top-0 bg-black/90 backdrop-blur-md z-20 border-b border-zinc-900">
-        {categories.map((cat) => {
-          const Icon = cat.icon;
-          const isActive = activeCategory === cat.name;
-          return (
-            <button
-              key={cat.name}
-              onClick={() => setActiveCategory(cat.name)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
-                isActive
-                  ? "bg-white text-black border-white shadow-lg shadow-white/10"
-                  : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200"
-              }`}
-            >
-              <Icon
-                className={`w-3.5 h-3.5 ${isActive ? "text-black" : "text-zinc-400"}`}
-              />
-              {cat.name}
-            </button>
-          );
-        })}
+    <div className="mx-auto max-w-[1800px] px-4 pb-16 sm:px-6">
+      {/* Category chips */}
+      <div className="sticky top-0 z-20 -mx-4 bg-[#09090b]/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="flex gap-2 overflow-x-auto scrollbar-none">
+          {CATEGORIES.map((name) => {
+            const active = activeCategory === name;
+            return (
+              <button
+                key={name}
+                onClick={() => setActiveCategory(name)}
+                className={`shrink-0 cursor-pointer rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition ${
+                  active
+                    ? "bg-white text-black"
+                    : "bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                }`}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Main Video Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-        {videos.map((vid) => {
-          const channelName = vid.user?.channelName || "Orbit Creator";
-          const avatarUrl = vid.user?.avatarUrl;
+      {/* Feed */}
+      <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-9 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        {loading &&
+          Array.from({ length: 10 }).map((_, i) => <VideoCardSkeleton key={i} />)}
 
-          return (
-            <Link
-              to={`/watch/${vid.id}`}
-              key={vid.id}
-              className="group flex flex-col gap-3.5 cursor-pointer p-3 rounded-2xl border border-transparent hover:border-zinc-800 hover:bg-[#0a0a0a] transition-all duration-300"
-            >
-              {/* Thumbnail Container */}
-              <div className="aspect-video rounded-xl overflow-hidden relative border border-zinc-800/80 bg-zinc-900">
-                <video
-                  src={vid.filepath}
-                  className="w-full h-full object-cover scale-100 group-hover:scale-105 transition-transform duration-500 ease-out"
-                  muted
-                  loop
-                  onMouseEnter={(e) => e.target.play().catch(() => {})}
-                  onMouseLeave={(e) => {
-                    e.target.pause();
-                    e.target.currentTime = 0;
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-
-                {vid.isLive ? (
-                  <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-red-600/90 backdrop-blur-sm text-[10px] font-bold px-2 py-0.5 rounded-md text-white tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    LIVE
-                  </span>
-                ) : (
-                  <span className="absolute bottom-2 right-2 bg-black/90 backdrop-blur-md text-[11px] font-mono font-medium px-2 py-0.5 rounded-md text-zinc-200 border border-zinc-800">
-                    {vid.duration || "12:32"}
-                  </span>
-                )}
-              </div>
-
-              {/* Video Meta Info */}
-              <div className="flex gap-3.5 items-start">
-                <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5 overflow-hidden">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={channelName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    channelName[0].toUpperCase()
-                  )}
-                </div>
-
-                <div className="flex flex-col overflow-hidden w-full">
-                  <h3 className="font-bold text-zinc-100 text-sm tracking-tight line-clamp-2 leading-snug group-hover:text-white transition">
-                    {vid.title}
-                  </h3>
-                  <span className="text-xs text-zinc-400 mt-1.5 font-medium hover:text-zinc-200 transition">
-                    {channelName}
-                  </span>
-                  <div className="flex items-center gap-2 text-xs text-zinc-500 mt-1 font-mono">
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-3 h-3 text-zinc-500" />
-                      {vid.views ?? 0} views
-                    </span>
-                    <span>•</span>
-                    <span>{timeAgo(vid.uploadedAt || new Date())}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                  }}
-                  className="text-zinc-600 hover:text-white opacity-0 group-hover:opacity-100 transition p-1.5 rounded-lg hover:bg-zinc-900"
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </button>
-              </div>
-            </Link>
-          );
-        })}
+        {!loading &&
+          visibleVideos.map((vid) => <VideoCard key={vid.id} vid={vid} />)}
       </div>
+
+      {/* Error */}
+      {!loading && error && (
+        <div className="flex flex-col items-center py-32 text-center">
+          <WifiOff className="h-8 w-8 text-zinc-600" />
+          <p className="mt-4 text-sm font-medium text-zinc-200">Couldn't load the feed</p>
+          <p className="mt-1 text-xs text-zinc-500">Check your connection and try again.</p>
+          <button
+            onClick={load}
+            className="mt-5 flex cursor-pointer items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-zinc-200"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Retry
+          </button>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && !error && visibleVideos.length === 0 && (
+        <div className="flex flex-col items-center py-32 text-center">
+          <Eye className="h-8 w-8 text-zinc-600" />
+          <p className="mt-4 text-sm font-medium text-zinc-200">Nothing here yet</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {activeCategory === "All"
+              ? "No videos have been published."
+              : `No videos in ${activeCategory}.`}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
