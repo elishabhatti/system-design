@@ -1,33 +1,37 @@
-import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+function FullPageSpinner({ label }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#09090b]">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-white" />
+      <p className="mt-3 text-xs text-zinc-500">{label}</p>
+    </div>
+  );
+}
 
 export const ProtectedRoute = () => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-[#09090b]">
-        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-[11px] text-zinc-500 mt-3 font-mono tracking-widest uppercase">Authenticating...</p>
-      </div>
-    );
-  }
+  if (loading) return <FullPageSpinner label="Signing you in" />;
 
-  return user ? <Outlet /> : <Navigate to="/login" replace />;
+  return user ? (
+    <Outlet />
+  ) : (
+    <Navigate to="/login" replace state={{ from: location }} />
+  );
 };
 
 export const GuestRoute = () => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-[#09090b]">
-        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-[11px] text-zinc-500 mt-3 font-mono tracking-widest uppercase">Checking session...</p>
-      </div>
-    );
-  }
+  if (loading) return <FullPageSpinner label="Checking session" />;
 
-  return !user ? <Outlet /> : <Navigate to="/" replace />;
+  const from = location.state?.from;
+  const target = from ? `${from.pathname}${from.search || ""}` : "/";
+
+  return !user ? <Outlet /> : <Navigate to={target} replace />;
 };
