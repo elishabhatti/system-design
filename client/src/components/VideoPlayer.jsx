@@ -25,6 +25,8 @@ import { useResumePlayback } from "../hooks/useResumePlayback";
 import { usePlayerKeyboardShortcuts } from "../hooks/usePlayerKeyboardShortcuts";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const CLICK_DELAY_MS = 220; // wait to tell single click from double click
+const SEEK_CHAIN_MS = 500; // after a double-tap, extra taps keep seeking
 
 function formatTime(sec) {
   if (!isFinite(sec)) return "0:00";
@@ -38,7 +40,7 @@ function formatTime(sec) {
 function MenuShell({ children, className = "w-52" }) {
   return (
     <div
-      className={`absolute bottom-11 right-0 ${className} rounded-xl border border-white/10 bg-zinc-950/95 py-1.5 text-sm shadow-2xl backdrop-blur-md z-20`}
+      className={`absolute bottom-11 right-0 ${className} z-20 rounded-xl border border-white/10 bg-zinc-950/95 py-1.5 text-sm shadow-2xl backdrop-blur-md`}
     >
       {children}
     </div>
@@ -69,7 +71,7 @@ function MenuOption({ active, onClick, children, hint }) {
         {children}
         {hint && <span className="text-xs text-zinc-500">{hint}</span>}
       </span>
-      {active && <Check className="h-4 w-4 text-violet-400" />}
+      {active && <Check className="h-4 w-4 text-white" />}
     </button>
   );
 }
@@ -114,7 +116,13 @@ export default function VideoPlayer({
   const volFlashTimer = useRef(null);
   const seekFlashTimer = useRef(null);
   const slowNetworkTimer = useRef(null);
+  const clickTimer = useRef(null);
+  const seekChainUntil = useRef(0);
   const pendingResumeRef = useRef(null);
+
+  // `playing` mirrored in a ref so the hide-controls timer never reads a stale value
+  const playingRef = useRef(false);
+  playingRef.current = playing;
 
   // Latest callbacks in refs => video listeners are bound once per source,
   // not re-bound on every parent render.
@@ -261,8 +269,7 @@ export default function VideoPlayer({
     setDragging(false);
   };
 
-  const handleDoubleClickZone = (dir) => {
-    skip(dir === "left" ? -10 : 10);
+  const flashSeek = (dir) => {
     setSeekFlash(dir);
     clearTimeout(seekFlashTimer.current);
     seekFlashTimer.current = setTimeout(() => setSeekFlash(null), 500);
@@ -322,12 +329,54 @@ export default function VideoPlayer({
     setControlsVisible(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
-      if (playing) {
+      if (playingRef.current) {
         setControlsVisible(false);
         setActiveMenu(null);
       }
     }, 2500);
-  }, [playing]);
+  }, []);
+
+  // Paused => controls always visible. Started playing => start the hide countdown.
+  useEffect(() => {
+    if (playing) resetHideTimer();
+    else {
+      clearTimeout(hideTimer.current);
+      setControlsVisible(true);
+    }
+  }, [playing, resetHideTimer]);
+
+  // ---- YouTube-style click surface ----
+  // single click        => play / pause
+  // double click L / R  => seek -/+ 10s (extra taps within 500ms keep seeking)
+  // double click center => fullscreen
+  const handleSurfaceClick = (zone) => () => {
+    if (activeMenu) {
+      setActiveMenu(null); // first click only dismisses an open menu
+      return;
+    }
+
+    const now = Date.now();
+    const isSide = zone === "left" || zone === "right";
+
+    if (clickTimer.current || (isSide && now < seekChainUntil.current)) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+
+      if (zone === "center") {
+        toggleFullscreen();
+      } else {
+        skip(zone === "left" ? -10 : 10);
+        flashSeek(zone);
+        seekChainUntil.current = now + SEEK_CHAIN_MS;
+      }
+      return;
+    }
+
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      togglePlay();
+    }, CLICK_DELAY_MS);
+  };
 
   const handleRetry = () => {
     setFatalError(false);
@@ -341,6 +390,7 @@ export default function VideoPlayer({
       clearTimeout(volFlashTimer.current);
       clearTimeout(seekFlashTimer.current);
       clearTimeout(slowNetworkTimer.current);
+      clearTimeout(clickTimer.current);
     };
   }, []);
 
@@ -461,15 +511,21 @@ export default function VideoPlayer({
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
 
+  // keep the hover tooltip inside the bar's edges
+  const barWidth = progressBarRef.current?.clientWidth || 0;
+  const tooltipX = barWidth ? Math.min(Math.max(hoverX, 24), barWidth - 24) : hoverX;
+
+  const hideCursor = playing && !controlsVisible;
+
   return (
     <div
       ref={containerRef}
-      className={`group/player relative aspect-video w-full select-none overflow-hidden bg-black transition-shadow duration-500 ${
-        playing ? "shadow-[0_0_60px_-15px_rgba(139,92,246,0.35)]" : ""
+      className={`group/player relative aspect-video w-full select-none overflow-hidden bg-black ${
+        hideCursor ? "cursor-none" : ""
       }`}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => {
-        if (playing) {
+        if (playingRef.current) {
           setControlsVisible(false);
           setActiveMenu(null);
         }
@@ -481,13 +537,13 @@ export default function VideoPlayer({
         autoPlay
         playsInline
         className="h-full w-full object-contain"
-        onClick={togglePlay}
       />
 
-      {/* double-tap zones */}
-      <div className="pointer-events-none absolute inset-0 flex">
-        <div className="pointer-events-auto h-full w-1/2" onDoubleClick={() => handleDoubleClickZone("left")} />
-        <div className="pointer-events-auto h-full w-1/2" onDoubleClick={() => handleDoubleClickZone("right")} />
+      {/* click surface: left / center / right thirds (sits above the video, below the controls) */}
+      <div className="absolute inset-0 flex">
+        <div className="h-full w-[30%] cursor-pointer" onClick={handleSurfaceClick("left")} />
+        <div className="h-full w-[40%] cursor-pointer" onClick={handleSurfaceClick("center")} />
+        <div className="h-full w-[30%] cursor-pointer" onClick={handleSurfaceClick("right")} />
       </div>
 
       {seekFlash && (
@@ -510,10 +566,10 @@ export default function VideoPlayer({
 
       {loading && !fatalError && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/25 border-t-violet-400" />
+          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/25 border-t-white" />
           {slowNetwork && (
             <span className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1 text-xs text-zinc-300">
-              <WifiOff className="h-3 w-3" /> Slow connection — buffering
+              <WifiOff className="h-3 w-3" /> Slow connection, buffering
             </span>
           )}
         </div>
@@ -533,16 +589,17 @@ export default function VideoPlayer({
         </div>
       )}
 
+      {/* paused indicator: visual only, clicks go to the surface above */}
       {!playing && !loading && !fatalError && (
-        <button onClick={togglePlay} className="absolute inset-0 flex cursor-pointer items-center justify-center" aria-label="Play">
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm transition hover:bg-violet-600/80">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
             <Play className="ml-1 h-7 w-7 fill-white text-white" />
           </span>
-        </button>
+        </div>
       )}
 
       {isLive && (
-        <span className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded bg-red-600 px-2 py-1 text-[10px] font-bold tracking-wide text-white">
+        <span className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-1 rounded bg-red-600 px-2 py-1 text-[10px] font-bold tracking-wide text-white">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
           LIVE
         </span>
@@ -551,9 +608,12 @@ export default function VideoPlayer({
       {resumePrompt !== null && !fatalError && (
         <div className="absolute bottom-20 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-white/15 bg-zinc-950/95 px-4 py-2.5 text-xs shadow-2xl backdrop-blur-md">
           <span className="text-zinc-300">
-            Continue from <span className="font-semibold text-violet-400">{formatTime(resumePrompt)}</span>?
+            Continue from <span className="font-semibold text-white">{formatTime(resumePrompt)}</span>?
           </span>
-          <button onClick={() => applyResume(resumePrompt)} className="cursor-pointer rounded-lg bg-white px-3 py-1 font-semibold text-black transition hover:bg-zinc-200">
+          <button
+            onClick={() => applyResume(resumePrompt)}
+            className="cursor-pointer rounded-lg bg-white px-3 py-1 font-semibold text-black transition hover:bg-zinc-200"
+          >
             Continue
           </button>
           <button onClick={dismissResume} className="cursor-pointer text-zinc-500 transition hover:text-zinc-300">
@@ -566,7 +626,7 @@ export default function VideoPlayer({
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-zinc-950 p-5 shadow-2xl">
             <div className="mb-3 flex items-center gap-2 text-white">
-              <Keyboard className="h-4 w-4 text-violet-400" />
+              <Keyboard className="h-4 w-4 text-zinc-400" />
               <h4 className="text-sm font-semibold">Keyboard shortcuts</h4>
             </div>
             <div className="grid grid-cols-2 gap-y-2 text-xs text-zinc-300">
@@ -579,7 +639,10 @@ export default function VideoPlayer({
               <span>0–9</span><span className="text-zinc-500">Jump to 0–90%</span>
               <span>?</span><span className="text-zinc-500">Show this list</span>
             </div>
-            <button onClick={() => setShowShortcuts(false)} className="mt-4 w-full cursor-pointer rounded-lg bg-white/10 py-2 text-xs font-semibold text-white transition hover:bg-white/20">
+            <button
+              onClick={() => setShowShortcuts(false)}
+              className="mt-4 w-full cursor-pointer rounded-lg bg-white/10 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+            >
               Close
             </button>
           </div>
@@ -588,7 +651,7 @@ export default function VideoPlayer({
 
       {/* controls */}
       <div
-        className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-3 pt-10 transition-opacity duration-300 ${
+        className={`absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-3 pt-10 transition-opacity duration-300 ${
           controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
@@ -600,19 +663,20 @@ export default function VideoPlayer({
           onPointerLeave={() => !dragging && setHoverTime(null)}
           onPointerDown={handleBarPointerDown}
           onPointerUp={handleBarPointerUp}
+          onPointerCancel={handleBarPointerUp}
         >
           <div className="relative h-1 w-full rounded-full bg-white/20 transition-all group-hover/bar:h-1.5">
             <div className="absolute inset-y-0 left-0 rounded-full bg-white/35" style={{ width: `${bufferedPct}%` }} />
-            <div className="absolute inset-y-0 left-0 rounded-full bg-violet-500" style={{ width: `${progressPct}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${progressPct}%` }} />
             <div
-              className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-violet-400 opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
+              className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
               style={{ left: `calc(${progressPct}% - 7px)` }}
             />
           </div>
           {hoverTime !== null && !isLive && (
             <div
               className="pointer-events-none absolute -top-6 -translate-x-1/2 rounded bg-black/90 px-1.5 py-1 text-[11px] tabular-nums text-white"
-              style={{ left: hoverX }}
+              style={{ left: tooltipX }}
             >
               {formatTime(hoverTime)}
             </div>
@@ -621,7 +685,11 @@ export default function VideoPlayer({
 
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
-            <button onClick={togglePlay} className="cursor-pointer transition hover:text-zinc-300" aria-label={playing ? "Pause" : "Play"}>
+            <button
+              onClick={togglePlay}
+              className="cursor-pointer transition hover:text-zinc-300"
+              aria-label={playing ? "Pause" : "Play"}
+            >
               {playing ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
             </button>
 
@@ -630,7 +698,15 @@ export default function VideoPlayer({
                 {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
               <div className="w-0 overflow-hidden transition-all duration-200 group-hover/vol:w-16">
-                <input type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} onChange={handleVolumeChange} className="h-1 w-16 cursor-pointer accent-violet-500" />
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={muted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="h-1 w-16 cursor-pointer accent-white"
+                />
               </div>
             </div>
 
@@ -647,19 +723,29 @@ export default function VideoPlayer({
             {hasQualityMenu && (
               <button
                 onClick={() => setActiveMenu(activeMenu === "quality" ? null : "quality")}
-                className="cursor-pointer rounded-md border border-white/20 px-2 py-0.5 text-xs font-medium tabular-nums transition hover:border-violet-400 hover:text-violet-300"
+                className="cursor-pointer rounded-md border border-white/20 px-2 py-0.5 text-xs font-medium tabular-nums transition hover:border-white hover:text-white"
                 title="Video quality"
               >
                 {currentQualityLabel}
               </button>
             )}
 
-            <button onClick={() => setShowShortcuts(true)} className="hidden cursor-pointer transition hover:text-violet-400 sm:flex" title="Keyboard shortcuts (?)">
+            <button
+              onClick={() => setShowShortcuts(true)}
+              className="hidden cursor-pointer text-zinc-300 transition hover:text-white sm:flex"
+              title="Keyboard shortcuts (?)"
+            >
               <Keyboard className="h-5 w-5" />
             </button>
 
             {typeof onToggleTheater === "function" && (
-              <button onClick={onToggleTheater} className={`hidden cursor-pointer transition sm:flex ${theaterMode ? "text-violet-400" : "hover:text-violet-400"}`} title="Theater mode (T)">
+              <button
+                onClick={onToggleTheater}
+                className={`hidden cursor-pointer transition sm:flex ${
+                  theaterMode ? "text-white" : "text-zinc-300 hover:text-white"
+                }`}
+                title="Theater mode (T)"
+              >
                 <RectangleHorizontal className="h-5 w-5" />
               </button>
             )}
@@ -667,7 +753,7 @@ export default function VideoPlayer({
             <div className="relative">
               <button
                 onClick={() => setActiveMenu(activeMenu === "main" ? null : "main")}
-                className="flex cursor-pointer items-center p-1 transition hover:text-violet-400"
+                className="flex cursor-pointer items-center p-1 text-zinc-300 transition hover:text-white"
                 title="Settings"
               >
                 <Settings className="h-5 w-5" />
@@ -675,14 +761,20 @@ export default function VideoPlayer({
 
               {activeMenu === "main" && (
                 <MenuShell>
-                  <button onClick={() => setActiveMenu("speed")} className="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-zinc-200 transition hover:bg-white/10">
+                  <button
+                    onClick={() => setActiveMenu("speed")}
+                    className="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-zinc-200 transition hover:bg-white/10"
+                  >
                     <span>Playback speed</span>
                     <span className="flex items-center gap-1 text-zinc-500">
                       {speed === 1 ? "Normal" : `${speed}x`} <ChevronRight className="h-4 w-4" />
                     </span>
                   </button>
                   {hasQualityMenu && (
-                    <button onClick={() => setActiveMenu("quality")} className="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-zinc-200 transition hover:bg-white/10">
+                    <button
+                      onClick={() => setActiveMenu("quality")}
+                      className="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-zinc-200 transition hover:bg-white/10"
+                    >
                       <span>Quality</span>
                       <span className="flex items-center gap-1 text-zinc-500">
                         {currentQualityLabel} <ChevronRight className="h-4 w-4" />
@@ -715,11 +807,19 @@ export default function VideoPlayer({
               </MenuShell>
             )}
 
-            <button onClick={togglePiP} className="cursor-pointer transition hover:text-violet-400" title="Picture in picture">
+            <button
+              onClick={togglePiP}
+              className="cursor-pointer text-zinc-300 transition hover:text-white"
+              title="Picture in picture"
+            >
               <PictureInPicture2 className="h-5 w-5" />
             </button>
 
-            <button onClick={toggleFullscreen} className="cursor-pointer transition hover:text-violet-400" title="Fullscreen (F)">
+            <button
+              onClick={toggleFullscreen}
+              className="cursor-pointer text-zinc-300 transition hover:text-white"
+              title="Fullscreen (F)"
+            >
               {fullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </button>
           </div>
