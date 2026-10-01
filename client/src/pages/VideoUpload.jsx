@@ -462,7 +462,7 @@ export default function VideoUpload() {
                   <input
                     id="tags"
                     type="text"
-                    placeholder="react, node, hls"
+                    placeholder="cartoon, education, funny"
                     value={tags}
                     onChange={(e) => setTags(e.target.value)}
                     className={inputCls}
