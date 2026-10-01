@@ -23,8 +23,23 @@ const CATEGORIES = [
   { value: "Technology", label: "Technology & code" },
   { value: "System Architecture", label: "System architecture" },
   { value: "Music", label: "Music & beats" },
+  { value: "Cartoon", label: "Cartoon" },
+  { value: "Anime", label: "Anime" },
+  { value: "Movies", label: "Movies" },
+  { value: "Comedy", label: "Comedy" },
   { value: "Gaming", label: "Gaming" },
   { value: "Education", label: "Education" },
+  { value: "Entertainment", label: "Entertainment" },
+  { value: "Lifestyle", label: "Lifestyle & Vlogs" },
+  { value: "Fitness", label: "Fitness & Health" },
+  { value: "Food", label: "Food & Cooking" },
+  { value: "Fashion", label: "Fashion & Beauty" },
+  { value: "News", label: "News & Politics" },
+  { value: "Science", label: "Science & Nature" },
+  { value: "Sports", label: "Sports" },
+  { value: "Automotive", label: "Automotive" },
+  { value: "Finance", label: "Finance & Business" },
+  { value: "Art", label: "Art & Design" },
 ];
 
 const VISIBILITY = [
