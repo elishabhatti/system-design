@@ -1,27 +1,67 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Video, PlusSquare, User, LogOut, Compass, Flame, Radio, Search, Bell, Sparkles, Orbit as OrbitIcon, Check, Heart, UserPlus } from 'lucide-react';
-import { io } from 'socket.io-client';
-import { fetchNotificationsApi, markNotificationsReadApi } from '../services/api';
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import {
+  Video,
+  PlusSquare,
+  User,
+  LogOut,
+  Compass,
+  Flame,
+  Radio,
+  Search,
+  Bell,
+  Orbit as OrbitIcon,
+  Heart,
+  UserPlus,
+} from "lucide-react";
+import { io } from "socket.io-client";
+import { fetchNotificationsApi, markNotificationsReadApi } from "../services/api";
+
+const NAV_LINKS = [
+  { name: "Feed", path: "/", icon: Flame },
+  { name: "Explore", path: "/explore", icon: Compass },
+  { name: "Live", path: "/live", icon: Radio },
+];
+
+const shortTimeAgo = (dateString) => {
+  if (!dateString) return "";
+  const s = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
+const getNotificationIcon = (type) => {
+  switch (type) {
+    case "LIKE":
+      return <Heart className="h-3 w-3 fill-red-500 text-red-500" />;
+    case "SUBSCRIBE":
+      return <UserPlus className="h-3 w-3 text-blue-400" />;
+    case "UPLOAD":
+      return <Video className="h-3 w-3 text-emerald-400" />;
+    default:
+      return <Bell className="h-3 w-3 text-zinc-400" />;
+  }
+};
 
 export default function Navbar() {
   const { user, logoutUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState('');
+
+  const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  
-  // Notification States
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Refs for Click Outside Detection
   const notificationRef = useRef(null);
   const dropdownRef = useRef(null);
+  const searchInputRef = useRef(null);
 
-  // Close dropdowns when clicking outside
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
@@ -31,43 +71,54 @@ export default function Navbar() {
         setShowDropdown(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch initial notifications & setup Socket.io for Real-Time Sync
+  // Ctrl/Cmd+K or "/" focuses search
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Initial notifications + realtime socket
   useEffect(() => {
     if (!user) return;
 
     const currentUserId = user.id || user._id;
 
-    // 1. Fetch old notifications from API
     fetchNotificationsApi()
-      .then(data => {
+      .then((data) => {
         if (Array.isArray(data)) {
           setNotifications(data);
-          setUnreadCount(data.filter(n => !n.read).length);
+          setUnreadCount(data.filter((n) => !n.read).length);
         }
       })
-      .catch(err => console.error("Failed to load notifications", err));
+      .catch((err) => console.error("Failed to load notifications", err));
 
-    // 2. Connect Socket.io client safely
     const socket = io({
-      transports: ['websocket', 'polling'],
+      transports: ["websocket", "polling"],
       withCredentials: true,
     });
-    
-    socket.emit('joinRoom', currentUserId);
-    socket.on('newNotification', (notif) => {
-      setNotifications(prev => {
-        if (prev.some(n => n.id === notif.id)) return prev;
+
+    socket.emit("joinRoom", currentUserId);
+    socket.on("newNotification", (notif) => {
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notif.id)) return prev;
         return [notif, ...prev];
       });
-      setUnreadCount(prev => prev + 1);
+      setUnreadCount((prev) => prev + 1);
     });
 
     return () => {
-      socket.off('newNotification');
+      socket.off("newNotification");
       socket.disconnect();
     };
   }, [user]);
@@ -76,7 +127,7 @@ export default function Navbar() {
     try {
       await markNotificationsReadApi();
       setUnreadCount(0);
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch (err) {
       console.error("Failed to mark notifications as read", err);
     }
@@ -91,162 +142,145 @@ export default function Navbar() {
 
   const isActive = (path) => location.pathname === path;
 
-  // Helper to render icon based on notification type
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'LIKE':
-        return <Heart className="w-3 h-3 text-red-500 fill-red-500" />;
-      case 'SUBSCRIBE':
-        return <UserPlus className="w-3 h-3 text-blue-400" />;
-      case 'UPLOAD':
-        return <Video className="w-3 h-3 text-emerald-400" />;
-      default:
-        return <Bell className="w-3 h-3 text-zinc-400" />;
-    }
-  };
-
   return (
-    <header className="sticky top-0 z-50 px-4 py-3 bg-black/90 backdrop-blur-xl border-b border-zinc-900 transition-all">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        
-        {/* Brand Logo */}
-        <Link to="/" className="flex items-center gap-3 group cursor-pointer">
-          <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center relative overflow-hidden group-hover:border-zinc-600 transition duration-300 shadow-xl">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-50"></div>
-            <OrbitIcon className="w-5 h-5 text-white group-hover:rotate-180 transition duration-700 ease-in-out" />
-            <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-white rounded-full animate-pulse shadow-sm shadow-white"></div>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-extrabold text-sm tracking-tight text-white flex items-center gap-1.5">
-              ORBIT <span className="text-[9px] bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded-md text-zinc-400 font-mono">v2.4</span>
-            </span>
-            <span className="text-[10px] text-zinc-500 font-mono font-bold tracking-widest uppercase">STUDIO</span>
-          </div>
+    <header className="sticky top-0 z-50 h-14 border-b border-zinc-900 bg-[#09090b]/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-full max-w-[1800px] items-center justify-between gap-4 px-4">
+        {/* Brand */}
+        <Link to="/" className="flex shrink-0 items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-black">
+            <OrbitIcon className="h-4.5 w-4.5" />
+          </span>
+          <span className="text-[15px] font-bold tracking-tight text-white">Orbit</span>
         </Link>
 
-        {/* Center Search Bar */}
-        <form onSubmit={handleSearch} className="hidden md:flex items-center flex-1 max-w-md relative group">
+        {/* Search */}
+        <form
+          onSubmit={handleSearch}
+          className="relative hidden max-w-xl flex-1 items-center md:flex"
+        >
+          <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-zinc-500" />
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search creator videos, streams, tags..."
-            className="w-full bg-zinc-950 border border-zinc-800 focus:border-white rounded-2xl px-4 py-2.5 pl-10 text-xs text-zinc-100 placeholder-zinc-600 outline-none transition-all shadow-inner group-hover:border-zinc-700 font-medium"
+            placeholder="Search videos, creators, tags"
+            className="w-full rounded-full border border-zinc-800 bg-zinc-950 py-2 pl-10 pr-14 text-[13px] text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-500"
           />
-          <Search className="w-4 h-4 text-zinc-600 absolute left-3.5 transition group-focus-within:text-white" />
-          <div className="absolute right-2.5 px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-400">
-            ⌘K
-          </div>
+          <kbd className="pointer-events-none absolute right-3 rounded border border-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+            Ctrl K
+          </kbd>
         </form>
 
-        {/* Quick Nav Links */}
-        <div className="hidden lg:flex items-center gap-1 bg-zinc-950 border border-zinc-900 p-1 rounded-2xl">
-          {[
-            { name: 'Feed', path: '/', icon: Flame },
-            { name: 'Explore', path: '/explore', icon: Compass },
-            { name: 'Live', path: '/live', icon: Radio },
-          ].map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
+        {/* Section links */}
+        <nav className="hidden items-center gap-1 lg:flex">
+          {NAV_LINKS.map(({ name, path, icon: Icon }) => {
+            const active = isActive(path);
             return (
               <Link
-                key={item.name}
-                to={item.path}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  active 
-                    ? 'bg-white text-black shadow-lg font-bold' 
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+                key={name}
+                to={path}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium transition ${
+                  active ? "bg-zinc-900 text-white" : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${active ? 'text-black' : 'text-zinc-400'}`} />
-                {item.name}
+                <Icon className="h-4 w-4" />
+                {name}
               </Link>
             );
           })}
-        </div>
+        </nav>
 
-        {/* Right Action Hub */}
-        <div className="flex items-center gap-3">
+        {/* Right side */}
+        <div className="flex shrink-0 items-center gap-2">
           {user ? (
             <>
-              {/* Upload Video Button */}
               <Link
                 to="/create"
-                className="hidden sm:flex items-center gap-2 bg-white hover:bg-zinc-200 text-black px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg transition active:scale-95 cursor-pointer"
+                className="hidden items-center gap-2 rounded-full bg-white px-4 py-1.5 text-[13px] font-semibold text-black transition hover:bg-zinc-200 active:scale-95 sm:flex"
               >
-                <PlusSquare className="w-4 h-4" />
-                <span>Upload</span>
+                <PlusSquare className="h-4 w-4" />
+                Upload
               </Link>
 
-              {/* Notification Bell Dropdown */}
+              {/* Notifications */}
               <div className="relative" ref={notificationRef}>
                 <button
+                  aria-label="Notifications"
                   onClick={() => {
-                    const nextState = !showNotifications;
-                    setShowNotifications(nextState);
-                    if (nextState && unreadCount > 0) markAsRead();
+                    const next = !showNotifications;
+                    setShowNotifications(next);
+                    setShowDropdown(false);
+                    if (next && unreadCount > 0) markAsRead();
                   }}
-                  className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition relative cursor-pointer"
+                  className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
                 >
-                  <Bell className="w-4 h-4" />
+                  <Bell className="h-[18px] w-[18px]" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold text-black">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
                   )}
                 </button>
 
                 {showNotifications && (
-                  <div className="absolute right-0 top-12 w-80 sm:w-88 bg-zinc-950 border border-zinc-800 rounded-2xl py-2 shadow-2xl z-50 backdrop-blur-2xl">
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-900 mb-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-white">Notifications</p>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400">
-                          {unreadCount} unread
-                        </span>
-                      </div>
+                  <div className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl sm:w-96">
+                    <div className="flex items-center justify-between border-b border-zinc-900 px-4 py-3">
+                      <p className="text-[13px] font-semibold text-white">Notifications</p>
                       {unreadCount > 0 && (
-                        <button 
+                        <button
                           onClick={markAsRead}
-                          className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                          className="cursor-pointer text-[11px] text-zinc-400 transition hover:text-white"
                         >
                           Mark all read
                         </button>
                       )}
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
+                    <div className="max-h-80 overflow-y-auto">
                       {notifications.length === 0 ? (
-                        <p className="text-xs text-zinc-600 text-center py-8 font-mono">No notifications yet</p>
+                        <p className="py-10 text-center text-xs text-zinc-600">
+                          No notifications yet
+                        </p>
                       ) : (
                         notifications.map((notif) => (
-                          <div 
-                            key={notif.id} 
-                            className={`flex items-start gap-3 px-4 py-3 border-b border-zinc-900/50 hover:bg-zinc-900/40 transition relative ${!notif.read ? 'bg-zinc-900/30' : ''}`}
+                          <div
+                            key={notif.id}
+                            className={`flex items-start gap-3 px-4 py-3 transition hover:bg-zinc-900/50 ${
+                              !notif.read ? "bg-zinc-900/30" : ""
+                            }`}
                           >
-                            {/* Avatar with Type Badge */}
                             <div className="relative shrink-0">
-                              <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold overflow-hidden text-zinc-300">
+                              <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-xs font-semibold text-zinc-200">
                                 {notif.sender?.avatarUrl ? (
-                                  <img src={notif.sender.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  <img
+                                    src={notif.sender.avatarUrl}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                  />
                                 ) : (
                                   (notif.sender?.channelName || "U")[0].toUpperCase()
                                 )}
                               </div>
-                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950">
                                 {getNotificationIcon(notif.type)}
-                              </div>
+                              </span>
                             </div>
 
-                            <div className="flex flex-col text-xs flex-1">
-                              <p className="text-zinc-300 leading-relaxed">
-                                <span className="font-bold text-white">{notif.sender?.channelName || "Someone"}</span> {notif.message}
+                            <div className="min-w-0 flex-1 text-[13px]">
+                              <p className="leading-snug text-zinc-400">
+                                <span className="font-semibold text-white">
+                                  {notif.sender?.channelName || "Someone"}
+                                </span>{" "}
+                                {notif.message}
                               </p>
-                              <span className="text-[10px] text-zinc-500 font-mono mt-1">
-                                {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              <span className="mt-0.5 block text-[11px] text-zinc-600">
+                                {shortTimeAgo(notif.createdAt)}
                               </span>
                             </div>
 
                             {!notif.read && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-white self-center shrink-0"></div>
+                              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
                             )}
                           </div>
                         ))
@@ -256,32 +290,38 @@ export default function Navbar() {
                 )}
               </div>
 
-              {/* User Avatar Menu Dropdown */}
+              {/* Avatar menu */}
               <div className="relative" ref={dropdownRef}>
                 <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden flex items-center justify-center font-bold text-xs text-white hover:border-zinc-600 transition cursor-pointer shadow-md"
+                  aria-label="Account menu"
+                  onClick={() => {
+                    setShowDropdown(!showDropdown);
+                    setShowNotifications(false);
+                  }}
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-xs font-semibold text-white ring-offset-2 ring-offset-[#09090b] transition hover:ring-2 hover:ring-zinc-600"
                 >
                   {user.avatarUrl ? (
-                    <img src={user?.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <span>{user.channelName ? user.channelName[0].toUpperCase() : 'U'}</span>
+                    <span>{user.channelName ? user.channelName[0].toUpperCase() : "U"}</span>
                   )}
                 </button>
 
                 {showDropdown && (
-                  <div className="absolute right-0 top-12 w-52 bg-zinc-950 border border-zinc-800 rounded-2xl py-2 shadow-2xl z-50 backdrop-blur-2xl">
-                    <div className="px-4 py-2.5 border-b border-zinc-900 mb-1">
-                      <p className="text-xs font-bold text-white truncate">{user.channelName}</p>
-                      <p className="text-[10px] text-zinc-500 font-mono truncate">{user.email}</p>
+                  <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 py-1.5 shadow-2xl">
+                    <div className="border-b border-zinc-900 px-4 pb-3 pt-2">
+                      <p className="truncate text-[13px] font-semibold text-white">
+                        {user.channelName}
+                      </p>
+                      <p className="truncate text-[11px] text-zinc-500">{user.email}</p>
                     </div>
-                    
+
                     <Link
                       to="/profile"
                       onClick={() => setShowDropdown(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-900 hover:text-white transition font-medium"
+                      className="flex items-center gap-3 px-4 py-2.5 text-[13px] text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
                     >
-                      <User className="w-3.5 h-3.5 text-zinc-400" /> Channel Studio
+                      <User className="h-4 w-4 text-zinc-500" /> Channel Studio
                     </Link>
 
                     <button
@@ -289,27 +329,27 @@ export default function Navbar() {
                         setShowDropdown(false);
                         logoutUser();
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 transition cursor-pointer font-medium"
+                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-[13px] text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
                     >
-                      <LogOut className="w-3.5 h-3.5" /> Logout Session
+                      <LogOut className="h-4 w-4 text-zinc-500" /> Sign out
                     </button>
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <Link
                 to="/login"
-                className="text-xs font-semibold text-zinc-300 hover:text-white px-3.5 py-2 transition"
+                className="px-3 py-1.5 text-[13px] font-medium text-zinc-300 transition hover:text-white"
               >
-                Sign In
+                Sign in
               </Link>
               <Link
                 to="/register"
-                className="bg-white hover:bg-zinc-200 text-black px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg transition active:scale-95 cursor-pointer"
+                className="rounded-full bg-white px-4 py-1.5 text-[13px] font-semibold text-black transition hover:bg-zinc-200 active:scale-95"
               >
-                Get Started
+                Get started
               </Link>
             </div>
           )}
