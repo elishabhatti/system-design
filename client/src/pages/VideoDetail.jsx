@@ -4,10 +4,6 @@ import { fetchVideos, getCurrentUser } from "../services/api";
 import {
   ThumbsUp,
   Share2,
-  Bookmark,
-  Sparkles,
-  Eye,
-  Clock,
   Check,
   MessageSquare,
   Send,
@@ -37,8 +33,6 @@ const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost")
   .replace(/\/api$/, "");
 
 // Joins base + path with exactly ONE slash between them.
-// (Before: "http://localhost/" + "/hls/..." produced "//hls", which Express
-// does not match, so the playlist request 404'd.)
 const joinUrl = (base, path) =>
   `${base.replace(/\/+$/, "")}/${String(path).replace(/^\/+/, "")}`;
 
@@ -156,17 +150,23 @@ export default function VideoDetail() {
 
   if (loadingVideos) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[75vh] bg-black">
-        <div className="w-6 h-6 border-2 border-zinc-600 border-t-white rounded-full animate-spin"></div>
-        <p className="text-xs text-zinc-500 mt-3 font-mono">Loading player stream...</p>
+      <div className="min-h-screen bg-[#09090b]">
+        <Navbar />
+        <div className="flex min-h-[70vh] flex-col items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-white" />
+          <p className="mt-3 text-xs text-zinc-500">Loading video</p>
+        </div>
       </div>
     );
   }
 
   if (!currentVideo) {
     return (
-      <div className="text-center py-20 text-zinc-500 text-xs bg-black">
-        No videos available in your library.
+      <div className="min-h-screen bg-[#09090b]">
+        <Navbar />
+        <p className="py-32 text-center text-sm text-zinc-500">
+          This video isn't available.
+        </p>
       </div>
     );
   }
@@ -174,87 +174,85 @@ export default function VideoDetail() {
   const nextVideo = sidebarVideos[0];
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 relative">
+    <div className="min-h-screen bg-[#09090b] text-zinc-100">
       <Navbar />
       <div
-        className={`max-w-7xl mx-auto px-4 lg:px-8 py-6 grid grid-cols-1 gap-6 relative transition-all duration-300 ${
-          theaterMode ? "lg:grid-cols-1 max-w-full" : "lg:grid-cols-12"
+        className={`mx-auto grid grid-cols-1 gap-6 px-4 py-6 transition-all duration-300 lg:px-8 ${
+          theaterMode ? "max-w-full lg:grid-cols-1" : "max-w-[1800px] lg:grid-cols-12"
         }`}
       >
-        {/* Left: Player Card, Info & Comments */}
-        <div className={`flex flex-col gap-4 ${theaterMode ? "" : "lg:col-span-8 xl:col-span-9"}`}>
-          <div className="border border-zinc-900 rounded-2xl shadow-2xl overflow-hidden bg-zinc-950 relative">
-            <div className="relative aspect-video bg-black flex items-center justify-center">
-              <VideoPlayer
-                key={currentVideo.id}
-                src={getPlaybackSrc(currentVideo)}
-                qualities={currentVideo.hlsPath ? [] : qualityOptions}
-                videoId={currentVideo.id}
-                isLive={currentVideo.isLive}
-                handleTimeUpdate={handleTimeUpdate}
-                onEnded={handleVideoEnded}
-                theaterMode={theaterMode}
-                onToggleTheater={() => setTheaterMode((t) => !t)}
+        {/* Left: player, info, comments */}
+        <div className={`flex min-w-0 flex-col gap-4 ${theaterMode ? "" : "lg:col-span-8 xl:col-span-9"}`}>
+          <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+            <VideoPlayer
+              key={currentVideo.id}
+              src={getPlaybackSrc(currentVideo)}
+              qualities={currentVideo.hlsPath ? [] : qualityOptions}
+              videoId={currentVideo.id}
+              isLive={currentVideo.isLive}
+              handleTimeUpdate={handleTimeUpdate}
+              onEnded={handleVideoEnded}
+              theaterMode={theaterMode}
+              onToggleTheater={() => setTheaterMode((t) => !t)}
+            />
+
+            {autoplayCountdown !== null && nextVideo && (
+              <AutoplayOverlay
+                autoplayCountdown={autoplayCountdown}
+                nextVideo={nextVideo}
+                onPlayNow={() => navigate(`/watch/${nextVideo.id}`)}
+                onCancel={cancelAutoplay}
               />
-
-              {autoplayCountdown !== null && nextVideo && (
-                <AutoplayOverlay
-                  autoplayCountdown={autoplayCountdown}
-                  nextVideo={nextVideo}
-                  onPlayNow={() => navigate(`/watch/${nextVideo.id}`)}
-                  onCancel={cancelAutoplay}
-                />
-              )}
-            </div>
-
-            <div className="p-5 flex flex-col gap-4">
-              <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-snug">
-                {currentVideo.title}
-              </h1>
-
-              <ChannelAndActionsRow
-                currentVideo={currentVideo}
-                subscriberCount={subscriberCount}
-                isSubscribed={isSubscribed}
-                subscribingLoading={subscribingLoading}
-                onSubscribeToggle={handleSubscribe}
-                liked={liked}
-                likeCount={likeCount}
-                likeLoading={likeLoading}
-                likeBursts={likeBursts}
-                onLikeToggle={handleLike}
-                onShareClick={() => setIsShareModalOpen(true)}
-              />
-
-              <VideoStatsAndDescription currentVideo={currentVideo} displayedViews={displayedViews} likeCount={likeCount} />
-
-              <CommentsSection
-                comments={comments}
-                sortedComments={sortedComments}
-                commentSort={commentSort}
-                setCommentSort={setCommentSort}
-                newCommentText={newCommentText}
-                setNewCommentText={setNewCommentText}
-                onPostComment={handlePostComment}
-                currentUser={currentUser}
-                editingCommentId={editingCommentId}
-                editCommentText={editCommentText}
-                setEditCommentText={setEditCommentText}
-                onStartEdit={startEditingComment}
-                onCancelEdit={cancelEditingComment}
-                onSaveEdit={saveEditedComment}
-                onDelete={deleteComment}
-              />
-            </div>
+            )}
           </div>
+
+          <h1 className="text-lg font-semibold leading-snug tracking-tight text-white sm:text-xl">
+            {currentVideo.title}
+          </h1>
+
+          <ChannelAndActionsRow
+            currentVideo={currentVideo}
+            subscriberCount={subscriberCount}
+            isSubscribed={isSubscribed}
+            subscribingLoading={subscribingLoading}
+            onSubscribeToggle={handleSubscribe}
+            liked={liked}
+            likeCount={likeCount}
+            likeLoading={likeLoading}
+            likeBursts={likeBursts}
+            onLikeToggle={handleLike}
+            onShareClick={() => setIsShareModalOpen(true)}
+          />
+
+          <VideoStatsAndDescription
+            currentVideo={currentVideo}
+            displayedViews={displayedViews}
+            likeCount={likeCount}
+          />
+
+          <CommentsSection
+            comments={comments}
+            sortedComments={sortedComments}
+            commentSort={commentSort}
+            setCommentSort={setCommentSort}
+            newCommentText={newCommentText}
+            setNewCommentText={setNewCommentText}
+            onPostComment={handlePostComment}
+            currentUser={currentUser}
+            editingCommentId={editingCommentId}
+            editCommentText={editCommentText}
+            setEditCommentText={setEditCommentText}
+            onStartEdit={startEditingComment}
+            onCancelEdit={cancelEditingComment}
+            onSaveEdit={saveEditedComment}
+            onDelete={deleteComment}
+          />
         </div>
 
-        {/* Right: Up Next Queue Sidebar */}
+        {/* Right: Up next */}
         {!theaterMode && (
           <UpNextSidebar
-            videos={videos}
             sidebarVideos={sidebarVideos}
-            currentVideo={currentVideo}
             onSelect={(vidId) => navigate(`/watch/${vidId}`)}
           />
         )}
@@ -287,34 +285,55 @@ export default function VideoDetail() {
 }
 
 // ---------------------------------------------------------------------------
-// Presentational sub-components (no logic, just rendering).
+// Presentational sub-components
 // ---------------------------------------------------------------------------
+
+function Avatar({ url, name, className = "h-10 w-10 text-sm" }) {
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 font-semibold text-zinc-200 ${className}`}
+    >
+      {url ? (
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        (name || "U")[0].toUpperCase()
+      )}
+    </div>
+  );
+}
 
 function AutoplayOverlay({ autoplayCountdown, nextVideo, onPlayNow, onCancel }) {
   return (
-    <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-30 p-6">
-      <div className="bg-[#121216] border border-white/15 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
-        <div className="flex items-center gap-2 text-zinc-400 text-[11px] font-mono mb-3">
-          <SkipForward className="w-3.5 h-3.5" />
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/85 p-6 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+        <div className="mb-3 flex items-center gap-2 text-[12px] text-zinc-400">
+          <SkipForward className="h-3.5 w-3.5" />
           Up next in {autoplayCountdown}s
         </div>
-        <div className="flex gap-3 items-center mb-4">
-          <div className="w-24 aspect-video bg-black rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="aspect-video w-24 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
             {/* preload="metadata": only the first frame, not the whole file */}
-            <video src={nextVideo.filepath} preload="metadata" className="w-full h-full object-cover" muted />
+            <video
+              src={nextVideo.filepath ? `${nextVideo.filepath}#t=0.5` : undefined}
+              preload="metadata"
+              className="h-full w-full object-cover"
+              muted
+            />
           </div>
-          <h4 className="text-xs font-bold text-white leading-snug">{nextVideo.title}</h4>
+          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-white">
+            {nextVideo.title}
+          </h4>
         </div>
         <div className="flex gap-2">
           <button
             onClick={onPlayNow}
-            className="flex-1 bg-white text-black font-bold text-xs py-2 rounded-lg cursor-pointer hover:bg-zinc-200 transition"
+            className="flex-1 cursor-pointer rounded-lg bg-white py-2 text-xs font-semibold text-black transition hover:bg-zinc-200"
           >
             Play now
           </button>
           <button
             onClick={onCancel}
-            className="flex-1 bg-white/10 text-zinc-300 font-semibold text-xs py-2 rounded-lg cursor-pointer hover:bg-white/20 transition"
+            className="flex-1 cursor-pointer rounded-lg bg-zinc-900 py-2 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800"
           >
             Cancel
           </button>
@@ -338,31 +357,30 @@ function ChannelAndActionsRow({
   onShareClick,
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-900">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white shadow-md border border-zinc-800 overflow-hidden bg-zinc-900">
-          {currentVideo.user?.avatarUrl ? (
-            <img src={currentVideo.user.avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            (currentVideo.user?.channelName || "E")[0].toUpperCase()
-          )}
-        </div>
-        <div>
-          <h3 className="font-bold text-xs text-zinc-200">{currentVideo.user?.channelName || "Channel"}</h3>
-          <span className="text-[10px] text-zinc-500 font-mono">{subscriberCount} subscribers</span>
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar
+          url={currentVideo.user?.avatarUrl}
+          name={currentVideo.user?.channelName || "C"}
+        />
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-white">
+            {currentVideo.user?.channelName || "Channel"}
+          </h3>
+          <span className="text-xs text-zinc-500">{subscriberCount} subscribers</span>
         </div>
 
         <button
           onClick={onSubscribeToggle}
           disabled={subscribingLoading}
-          className={`ml-3 flex items-center gap-1.5 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer shadow-lg active:scale-95 disabled:opacity-50 ${
+          className={`ml-2 flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold transition active:scale-95 disabled:opacity-50 ${
             isSubscribed
-              ? "bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+              ? "bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
               : "bg-white text-black hover:bg-zinc-200"
           }`}
         >
-          {isSubscribed && <Check className="w-3.5 h-3.5" />}
-          <span>{isSubscribed ? "Subscribed" : "Subscribe"}</span>
+          {isSubscribed && <Check className="h-3.5 w-3.5" />}
+          {isSubscribed ? "Subscribed" : "Subscribe"}
         </button>
       </div>
 
@@ -370,18 +388,18 @@ function ChannelAndActionsRow({
         <button
           onClick={onLikeToggle}
           disabled={likeLoading}
-          className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+          className={`relative flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium transition ${
             liked
-              ? "bg-white border-white text-black font-bold shadow-lg"
-              : "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300"
+              ? "bg-white text-black"
+              : "bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
           }`}
         >
-          <ThumbsUp className="w-3.5 h-3.5" />
-          <span>{likeCount}</span>
+          <ThumbsUp className={`h-4 w-4 ${liked ? "fill-black" : ""}`} />
+          <span className="tabular-nums">{likeCount}</span>
           {likeBursts.map((b) => (
             <span
               key={b.id}
-              className="absolute -top-3 right-1 text-violet-400 text-[10px] font-bold pointer-events-none animate-[likeBurst_0.7s_ease-out_forwards]"
+              className="pointer-events-none absolute -top-3 right-2 animate-[likeBurst_0.7s_ease-out_forwards] text-[10px] font-bold text-white"
             >
               +1
             </span>
@@ -390,15 +408,10 @@ function ChannelAndActionsRow({
 
         <button
           onClick={onShareClick}
-          className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300"
+          className="flex cursor-pointer items-center gap-2 rounded-full bg-zinc-900 px-4 py-2 text-[13px] font-medium text-zinc-200 transition hover:bg-zinc-800"
         >
-          <Share2 className="w-3.5 h-3.5" />
-          <span>Share</span>
-        </button>
-
-        <button className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 px-3.5 py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition cursor-pointer text-zinc-300">
-          <Bookmark className="w-3.5 h-3.5" />
-          <span>Save</span>
+          <Share2 className="h-4 w-4" />
+          Share
         </button>
       </div>
     </div>
@@ -406,25 +419,49 @@ function ChannelAndActionsRow({
 }
 
 function VideoStatsAndDescription({ currentVideo, displayedViews, likeCount }) {
+  const [expanded, setExpanded] = useState(false);
+  const description = currentVideo.description?.trim();
+  const dateText = currentVideo.uploadedAt
+    ? new Date(currentVideo.uploadedAt).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : null;
+
   return (
-    <div className="border border-zinc-900 rounded-xl p-4 text-xs text-zinc-300 leading-relaxed bg-zinc-950">
-      <div className="flex flex-wrap items-center gap-4 font-semibold text-zinc-400 mb-3 pb-3 border-b border-zinc-900">
-        <span className="flex items-center gap-1.5">
-          <Eye className="w-3.5 h-3.5 text-zinc-500" />
-          <span className="tabular-nums">{displayedViews.toLocaleString()}</span> views
-        </span>
-        <span className="flex items-center gap-1.5">
-          <ThumbsUp className="w-3.5 h-3.5 text-zinc-500" />
-          {likeCount} likes
-        </span>
-        <span className="flex items-center gap-1.5 font-mono text-[11px]">
-          <Clock className="w-3.5 h-3.5 text-zinc-500" />
-          {currentVideo.uploadedAt ? new Date(currentVideo.uploadedAt).toLocaleDateString() : "—"}
-        </span>
+    <div className="rounded-xl bg-zinc-900/70 p-4 text-[13px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium text-zinc-200">
+        <span className="tabular-nums">{displayedViews.toLocaleString()} views</span>
+        <span className="text-zinc-600">·</span>
+        <span className="tabular-nums">{likeCount} likes</span>
+        {dateText && (
+          <>
+            <span className="text-zinc-600">·</span>
+            <span>{dateText}</span>
+          </>
+        )}
       </div>
-      <p className="text-zinc-400 font-normal">
-        {currentVideo.description || "Enjoy this immersive media stream configured directly from your library feed."}
-      </p>
+
+      {description && (
+        <>
+          <p
+            className={`mt-3 whitespace-pre-line leading-relaxed text-zinc-400 ${
+              expanded ? "" : "line-clamp-3"
+            }`}
+          >
+            {description}
+          </p>
+          {description.length > 160 && (
+            <button
+              onClick={() => setExpanded((e) => !e)}
+              className="mt-2 cursor-pointer text-xs font-medium text-white hover:underline"
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -449,43 +486,49 @@ function CommentsSection({
   const currentUserId = currentUser?.id || currentUser?._id;
 
   return (
-    <div className="mt-4 flex flex-col gap-4 border border-zinc-900 rounded-xl p-4 bg-zinc-950">
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-900">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-zinc-400" />
-          <h3 className="font-bold text-xs text-white">
-            Comments <span className="text-zinc-500 font-mono font-normal">({comments.length})</span>
-          </h3>
-        </div>
+    <section className="mt-2 flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-base font-semibold text-white">
+          <MessageSquare className="h-4 w-4 text-zinc-500" />
+          {comments.length} {comments.length === 1 ? "comment" : "comments"}
+        </h3>
         <button
           onClick={() => setCommentSort((s) => (s === "newest" ? "top" : "newest"))}
-          className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+          className="flex cursor-pointer items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
         >
-          <ArrowDownUp className="w-3 h-3" />
+          <ArrowDownUp className="h-3.5 w-3.5" />
           {commentSort === "newest" ? "Newest" : "Top"}
         </button>
       </div>
 
-      <form onSubmit={onPostComment} className="flex gap-2 items-center">
+      <form onSubmit={onPostComment} className="flex items-center gap-3">
+        <Avatar
+          url={currentUser?.avatarUrl}
+          name={currentUser?.channelName || "U"}
+          className="h-9 w-9 text-xs"
+        />
         <input
           type="text"
           value={newCommentText}
           onChange={(e) => setNewCommentText(e.target.value)}
-          placeholder="Add a public comment..."
-          className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition"
+          placeholder="Add a comment"
+          className="w-full rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-[13px] text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-500"
         />
         <button
           type="submit"
-          className="bg-white text-black hover:bg-zinc-200 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md active:scale-95"
+          disabled={!newCommentText.trim()}
+          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-black transition hover:bg-zinc-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
         >
-          <Send className="w-3.5 h-3.5" />
-          <span>Post</span>
+          <Send className="h-3.5 w-3.5" />
+          Post
         </button>
       </form>
 
-      <div className="flex flex-col gap-3 mt-2">
+      <div className="flex flex-col gap-5">
         {sortedComments.length === 0 ? (
-          <p className="text-xs text-zinc-600 text-center py-4 font-mono">No comments yet. Be the first to comment!</p>
+          <p className="py-6 text-center text-sm text-zinc-600">
+            No comments yet. Start the conversation.
+          </p>
         ) : (
           sortedComments.map((comm) => {
             const commentUserId = comm.user?.id || comm.userId;
@@ -493,41 +536,38 @@ function CommentsSection({
             const isEditing = editingCommentId === comm.id;
 
             return (
-              <div key={comm.id} className="flex gap-3 items-start p-3 rounded-xl bg-black border border-zinc-900/60 relative group">
-                <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden text-zinc-300">
-                  {comm.user?.avatarUrl ? (
-                    <img src={comm.user.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    (comm.user?.channelName || "U")[0].toUpperCase()
-                  )}
-                </div>
+              <div key={comm.id} className="group flex items-start gap-3">
+                <Avatar
+                  url={comm.user?.avatarUrl}
+                  name={comm.user?.channelName || "U"}
+                  className="h-9 w-9 text-xs"
+                />
 
-                <div className="flex flex-col w-full">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-zinc-300">{comm.user?.channelName || "User"}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-semibold text-zinc-200">
+                      {comm.user?.channelName || "User"}
+                    </span>
+                    <span className="text-zinc-600">
+                      {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
+                    </span>
 
-                    <div className="flex items-center gap-2.5">
-                      {isOwner && !isEditing && (
-                        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <button
-                            onClick={() => onStartEdit(comm)}
-                            className="text-[10px] text-zinc-400 hover:text-white px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer transition"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => onDelete(comm.id)}
-                            className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer transition"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-
-                      <span className="text-[10px] text-zinc-600 font-mono">
-                        {comm.createdAt ? new Date(comm.createdAt).toLocaleDateString() : "Just now"}
-                      </span>
-                    </div>
+                    {isOwner && !isEditing && (
+                      <div className="ml-auto flex items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                        <button
+                          onClick={() => onStartEdit(comm)}
+                          className="cursor-pointer rounded-md px-2 py-1 text-[11px] text-zinc-400 transition hover:bg-zinc-900 hover:text-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onDelete(comm.id)}
+                          className="cursor-pointer rounded-md px-2 py-1 text-[11px] text-red-400 transition hover:bg-zinc-900 hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {isEditing ? (
@@ -536,23 +576,25 @@ function CommentsSection({
                         type="text"
                         value={editCommentText}
                         onChange={(e) => setEditCommentText(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-[13px] text-white outline-none focus:border-zinc-500"
                       />
                       <button
                         onClick={onSaveEdit}
-                        className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold cursor-pointer"
+                        className="cursor-pointer rounded-lg bg-white px-3 py-1 text-xs font-semibold text-black transition hover:bg-zinc-200"
                       >
                         Save
                       </button>
                       <button
                         onClick={onCancelEdit}
-                        className="bg-zinc-900 border border-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs cursor-pointer"
+                        className="cursor-pointer rounded-lg bg-zinc-900 px-3 py-1 text-xs text-zinc-400 transition hover:bg-zinc-800"
                       >
                         Cancel
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{comm.content}</p>
+                    <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-zinc-300">
+                      {comm.content}
+                    </p>
                   )}
                 </div>
               </div>
@@ -560,112 +602,136 @@ function CommentsSection({
           })
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
-function UpNextSidebar({ videos, sidebarVideos, currentVideo, onSelect }) {
+function UpNextSidebar({ sidebarVideos, onSelect }) {
   return (
-    <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
-      <div className="border border-zinc-900 rounded-2xl p-3.5 flex items-center justify-between shadow-lg bg-zinc-950">
-        <div>
-          <h3 className="font-bold text-xs text-white">Queue Stream Mix</h3>
-          <span className="text-[10px] text-zinc-500 font-mono">{videos.length} videos available</span>
-        </div>
-        <Sparkles className="w-4 h-4 text-zinc-400" />
+    <aside className="flex flex-col gap-3 lg:col-span-4 xl:col-span-3">
+      <div className="flex items-baseline justify-between px-1">
+        <h3 className="text-sm font-semibold text-white">Up next</h3>
+        <span className="text-xs text-zinc-600">{sidebarVideos.length} videos</span>
       </div>
 
-      <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
-        {sidebarVideos.map((vid, idx) => {
-          const isSelected = String(currentVideo.id) === String(vid.id);
-          return (
-            <div
-              key={vid.id}
-              onClick={() => onSelect(vid.id)}
-              className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all border ${
-                isSelected
-                  ? "border-zinc-700 bg-zinc-900 shadow-md"
-                  : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900"
-              }`}
-            >
-              <div className="w-28 aspect-video bg-black rounded-lg overflow-hidden relative shrink-0 border border-zinc-800">
-                {/* preload="metadata": without it every sidebar item can download its whole MP4 */}
-                <video src={vid.filepath} preload="metadata" className="w-full h-full object-cover" muted />
-                <span className="absolute bottom-1 right-1 bg-black/90 text-[9px] px-1 rounded text-zinc-300 font-mono">
-                  {vid.duration || "—"}
+      <div className="flex max-h-[calc(100vh-8rem)] flex-col gap-1 overflow-y-auto pr-1">
+        {sidebarVideos.map((vid) => (
+          <div
+            key={vid.id}
+            onClick={() => onSelect(vid.id)}
+            className="group flex cursor-pointer gap-3 rounded-xl p-1.5 transition hover:bg-zinc-900/70"
+          >
+            <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
+              {/* preload="metadata": without it every sidebar item can download its whole MP4 */}
+              <video
+                src={vid.filepath ? `${vid.filepath}#t=0.5` : undefined}
+                preload="metadata"
+                className="h-full w-full object-cover"
+                muted
+              />
+              {vid.duration && (
+                <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] font-medium tabular-nums text-white">
+                  {vid.duration}
                 </span>
-              </div>
-              <div className="flex flex-col overflow-hidden w-full">
-                <span className="text-[10px] font-mono text-zinc-500 mb-0.5">#{idx + 1} in queue</span>
-                <h4 className={`font-semibold text-xs truncate ${isSelected ? "text-white font-bold" : "text-zinc-300 group-hover:text-white"}`}>
-                  {vid.title}
-                </h4>
-                <span className="text-[10px] text-zinc-500 truncate mt-0.5">{vid.user?.channelName || "Channel"}</span>
-              </div>
+              )}
             </div>
-          );
-        })}
+            <div className="min-w-0 py-0.5">
+              <h4 className="line-clamp-2 text-[13px] font-medium leading-snug text-zinc-100 group-hover:text-white">
+                {vid.title}
+              </h4>
+              <p className="mt-1 truncate text-xs text-zinc-500">
+                {vid.user?.channelName || "Channel"}
+              </p>
+              <p className="text-xs text-zinc-600">{(vid.views ?? 0).toLocaleString()} views</p>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
+    </aside>
   );
 }
 
-function ShareModal({ onClose, shareLinks, shareAtTimestamp, setShareAtTimestamp, currentTimeRef, currentVideoUrl, copied, onCopy }) {
+function ShareModal({
+  onClose,
+  shareLinks,
+  shareAtTimestamp,
+  setShareAtTimestamp,
+  currentTimeRef,
+  currentVideoUrl,
+  copied,
+  onCopy,
+}) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900">
-          <h3 className="font-bold text-sm text-white">Share video</h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-900 transition cursor-pointer">
-            <X className="w-4 h-4" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4">
+          <h3 className="text-sm font-semibold text-white">Share</h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="cursor-pointer rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-900 hover:text-white"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-6 flex flex-col gap-6">
-          <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 text-center">
-            <ShareIconLink href={shareLinks.whatsapp} label="WhatsApp" colorClass="text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black">
-              <MessageSquare className="w-5 h-5" />
+        <div className="flex flex-col gap-6 px-5 pb-6">
+          <div className="grid grid-cols-4 gap-4 text-center sm:grid-cols-6">
+            <ShareIconLink href={shareLinks.whatsapp} label="WhatsApp">
+              <MessageSquare className="h-5 w-5" />
             </ShareIconLink>
-            <ShareIconLink href={shareLinks.facebook} label="Facebook" colorClass="text-blue-400 group-hover:bg-blue-600 group-hover:text-white">
-              <Share2 className="w-5 h-5" />
+            <ShareIconLink href={shareLinks.facebook} label="Facebook">
+              <Share2 className="h-5 w-5" />
             </ShareIconLink>
-            <ShareIconLink href={shareLinks.twitter} label="X" colorClass="text-zinc-200 group-hover:bg-zinc-100 group-hover:text-black font-bold">
-              𝕏
+            <ShareIconLink href={shareLinks.twitter} label="X">
+              <span className="text-base font-bold">𝕏</span>
             </ShareIconLink>
-            <ShareIconLink href={shareLinks.linkedin} label="LinkedIn" colorClass="text-sky-400 group-hover:bg-sky-600 group-hover:text-white font-bold">
-              in
+            <ShareIconLink href={shareLinks.linkedin} label="LinkedIn">
+              <span className="text-sm font-bold">in</span>
             </ShareIconLink>
-            <ShareIconLink href={shareLinks.reddit} label="Reddit" colorClass="text-orange-400 group-hover:bg-orange-600 group-hover:text-white font-bold">
-              R
+            <ShareIconLink href={shareLinks.reddit} label="Reddit">
+              <span className="text-sm font-bold">R</span>
             </ShareIconLink>
-            <ShareIconLink href={shareLinks.email} label="Email" colorClass="text-zinc-300 group-hover:bg-zinc-200 group-hover:text-black" external={false}>
-              <Mail className="w-5 h-5" />
+            <ShareIconLink href={shareLinks.email} label="Email" external={false}>
+              <Mail className="h-5 w-5" />
             </ShareIconLink>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-zinc-400">
             <input
               type="checkbox"
               checked={shareAtTimestamp}
               onChange={(e) => setShareAtTimestamp(e.target.checked)}
-              className="accent-violet-500 w-3.5 h-3.5 cursor-pointer"
+              className="h-3.5 w-3.5 cursor-pointer accent-white"
             />
-            Share starting at {formatShareTime(currentTimeRef.current)}
+            Start at {formatShareTime(currentTimeRef.current)}
           </label>
 
-          <div className="flex items-center gap-2 bg-black border border-zinc-800 rounded-xl p-1.5">
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-black p-1.5">
             <input
               type="text"
               readOnly
               value={currentVideoUrl}
-              className="w-full bg-transparent px-3 text-xs text-zinc-300 focus:outline-none font-mono"
+              className="w-full bg-transparent px-3 font-mono text-xs text-zinc-300 outline-none"
             />
             <button
               onClick={onCopy}
-              className="bg-white hover:bg-zinc-200 text-black px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md active:scale-95"
+              className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-zinc-200 active:scale-95"
             >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? "Copied" : "Copy"}</span>
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copied" : "Copy"}
             </button>
           </div>
         </div>
@@ -674,27 +740,27 @@ function ShareModal({ onClose, shareLinks, shareAtTimestamp, setShareAtTimestamp
   );
 }
 
-function ShareIconLink({ href, label, colorClass, children, external = true }) {
+function ShareIconLink({ href, label, children, external = true }) {
   return (
     <a
       href={href}
       target={external ? "_blank" : undefined}
       rel={external ? "noopener noreferrer" : undefined}
-      className="flex flex-col items-center gap-1.5 group cursor-pointer"
+      className="group flex cursor-pointer flex-col items-center gap-1.5"
     >
-      <div className={`w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center transition shadow-md ${colorClass}`}>
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-zinc-300 transition group-hover:bg-white group-hover:text-black">
         {children}
-      </div>
-      <span className="text-[11px] text-zinc-400 group-hover:text-white">{label}</span>
+      </span>
+      <span className="text-[11px] text-zinc-500 group-hover:text-white">{label}</span>
     </a>
   );
 }
 
 function Toast({ message }) {
   return (
-    <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-800 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all">
-      <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-      <p className="text-xs font-semibold">{message}</p>
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-white shadow-2xl">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+      <p className="text-xs font-medium">{message}</p>
     </div>
   );
 }
