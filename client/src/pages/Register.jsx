@@ -4,6 +4,11 @@ import { registerUser } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import AuthShell from "../components/AuthShell";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
+import { validate, registerSchema } from "../lib/validation";
+import FieldError, { a11y } from "../components/FieldError";
+
+const [errors, setErrors] = useState({});
+const clear = (k) => errors[k] && setErrors((p) => ({ ...p, [k]: undefined }));
 
 const inputCls =
   "w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-zinc-500 focus:ring-1 focus:ring-white/10";
@@ -21,6 +26,11 @@ export default function Register() {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (submitting) return;
+    const result = validate(registerSchema, { channelName, email, password });
+    if (!result.ok) {
+      setErrors(result.errors);
+      return;
+    }
     try {
       setError("");
       setSubmitting(true);
@@ -28,7 +38,9 @@ export default function Register() {
       setAuthUser(data.user);
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.error || "Registration failed. Please try again.");
+      setError(
+        err.response?.data?.error || "Registration failed. Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -39,8 +51,12 @@ export default function Register() {
       headline="Your channel, live in a minute."
       copy="Upload videos, build an audience, and let adaptive streaming handle the rest."
     >
-      <h1 className="text-3xl font-semibold tracking-tight text-white">Create your account</h1>
-      <p className="mt-2 text-sm text-zinc-500">Set up your channel and start publishing.</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-white">
+        Create your account
+      </h1>
+      <p className="mt-2 text-sm text-zinc-500">
+        Set up your channel and start publishing.
+      </p>
 
       {error && (
         <div
@@ -53,7 +69,10 @@ export default function Register() {
 
       <form onSubmit={handleRegister} className="mt-8 space-y-4">
         <div>
-          <label htmlFor="channelName" className="mb-1.5 block text-sm font-medium text-zinc-300">
+          <label
+            htmlFor="channelName"
+            className="mb-1.5 block text-sm font-medium text-zinc-300"
+          >
             Channel name
           </label>
           <input
@@ -62,14 +81,18 @@ export default function Register() {
             autoComplete="nickname"
             placeholder="Your channel name"
             value={channelName}
-            onChange={(e) => setChannelName(e.target.value)}
-            required
+            onChange={(e) => {setChannelName(e.target.value); clear("channelName"); }}
+            {...a11y(errors.channelName, "channelName")}
             className={inputCls}
           />
+          <FieldError id="channelName" message={errors.channelName} />
         </div>
 
         <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-zinc-300">
+          <label
+            htmlFor="email"
+            className="mb-1.5 block text-sm font-medium text-zinc-300"
+          >
             Email
           </label>
           <input
@@ -78,14 +101,18 @@ export default function Register() {
             autoComplete="email"
             placeholder="you@example.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={(e) => {setEmail(e.target.value); clear("email"); }}
+            {...a11y(errors.email, "email")}
             className={inputCls}
           />
+          <FieldError id="email" message={errors.email} />
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-zinc-300">
+          <label
+            htmlFor="password"
+            className="mb-1.5 block text-sm font-medium text-zinc-300"
+          >
             Password
           </label>
           <div className="relative">
@@ -95,17 +122,27 @@ export default function Register() {
               autoComplete="new-password"
               placeholder="Create a password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+              onChange={(e) => {setPassword(e.target.value); clear("password"); }}
+              {...a11y(errors.password, "password")}
               className={`${inputCls} pr-12`}
             />
+            {!errors.password && (
+              <p className="mt-1.5 text-xs text-zinc-600">
+                8+ characters, with a letter and a number.
+              </p>
+            )}
+            <FieldError id="password" message={errors.password} />
             <button
               type="button"
               aria-label={showPassword ? "Hide password" : "Show password"}
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-zinc-500 transition hover:text-white"
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
         </div>
@@ -130,7 +167,10 @@ export default function Register() {
 
       <p className="mt-8 text-sm text-zinc-500">
         Already have an account?{" "}
-        <Link to="/login" className="font-medium text-white underline-offset-4 hover:underline">
+        <Link
+          to="/login"
+          className="font-medium text-white underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>
