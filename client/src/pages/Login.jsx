@@ -4,6 +4,11 @@ import { loginUser } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import AuthShell from "../components/AuthShell";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
+import { validate, loginSchema } from "../lib/validation";
+import FieldError, { a11y } from "../components/FieldError";
+
+const [errors, setErrors] = useState({});
+const clear = (k) => errors[k] && setErrors((p) => ({ ...p, [k]: undefined }));
 
 const inputCls =
   "w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-zinc-500 focus:ring-1 focus:ring-white/10";
@@ -20,6 +25,11 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (submitting) return;
+    const result = validate(loginSchema, { email, password }); 
+    if(!result.ok) {
+      setErrors(result.errors);
+      return;
+    }
     try {
       setError("");
       setSubmitting(true);
@@ -60,17 +70,20 @@ export default function Login() {
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
+            maxLength={254}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={(e) => {setEmail(e.target.value); clear("email"); }}
+            {...a11y(errors.email, "email")}
             className={inputCls}
           />
+          <FieldError id="email" message={errors.email} />
         </div>
 
         <div>
           <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-zinc-300">
             Password
           </label>
+          <FieldError id="password" message={errors.password} />
           <div className="relative">
             <input
               id="password"
@@ -78,8 +91,8 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="Your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+              onChange={(e) => {setPassword(e.target.value); clear("password"); }}
+              {...a11y(errors.password, "password")}
               className={`${inputCls} pr-12`}
             />
             <button
