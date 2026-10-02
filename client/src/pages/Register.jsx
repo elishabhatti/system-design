@@ -7,9 +7,6 @@ import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import { validate, registerSchema } from "../lib/validation";
 import FieldError, { a11y } from "../components/FieldError";
 
-const [errors, setErrors] = useState({});
-const clear = (k) => errors[k] && setErrors((p) => ({ ...p, [k]: undefined }));
-
 const inputCls =
   "w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-zinc-500 focus:ring-1 focus:ring-white/10";
 
@@ -22,6 +19,8 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const { loginUser: setAuthUser } = useAuth();
   const navigate = useNavigate();
+  const [errors, setErrors] = useState({});
+  const clear = (k) => errors[k] && setErrors((p) => ({ ...p, [k]: undefined }));
 
   const handleRegister = async (e) => {
     e.preventDefault();
