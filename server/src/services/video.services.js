@@ -99,26 +99,34 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
       user: { select: videoOwnerSelect },
     },
   });
+  try {
+    await invalidateVideoListCache();
 
-  await invalidateVideoListCache();
-
-  await videoQueue.add(
-    "processVideoUpload",
-    {
-      videoId: video.id,
-      videoTitle: video.title,
-      userId,
-      filepath: video.filepath,
-      filename: video.filename,
-      senderInfo: {
-        id: video.user.id,
-        channelName: video.user.channelName,
-        avatarUrl: video.user.avatarUrl,
+    await videoQueue.add(
+      "processVideoUpload",
+      {
+        videoId: video.id,
+        videoTitle: video.title,
+        userId,
+        filepath: video.filepath,
+        filename: video.filename,
+        senderInfo: {
+          channelName: video.user.channelName,
+          id: video.user.id,
+          avatarUrl: video.user.avatarUrl,
+        },
       },
-    },
-    JOB_OPTS
-  );
-
+      { ...JOB_OPTS, jobId: `transcode-${video.id}` },
+    );
+  } catch (err) {
+    await prisma.video.update({
+      where: { id: video.id },
+      data: { status: "FAILED" },
+    });
+    await invalidateVideoListCache();
+    throw err;
+  }
+  await invalidateVideoListCache();
   return video;
 };
 
@@ -126,7 +134,13 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
 export const getVideoStatus = async ({ videoId, userId }) => {
   const video = await prisma.video.findUnique({
     where: { id: videoId },
-    select: { id: true, title: true, isProcessed: true, hlsPath: true, userId: true },
+    select: {
+      id: true,
+      title: true,
+      isProcessed: true,
+      hlsPath: true,
+      userId: true,
+    },
   });
   if (!video) return { status: "not_found" };
   if (video.userId !== userId) return { status: "forbidden" };
@@ -180,11 +194,14 @@ export const deleteVideoById = async ({ videoId, userId }) => {
     await videoQueue.add(
       "deleteVideoAssets",
       { videoId, publicId: video.filename },
-      JOB_OPTS
+      JOB_OPTS,
     );
   } catch (err) {
     // DB row is already gone; log loudly so the orphan can be reconciled.
-    console.error(`[ORPHAN] Could not enqueue asset cleanup for ${videoId} (${video.filename}):`, err.message);
+    console.error(
+      `[ORPHAN] Could not enqueue asset cleanup for ${videoId} (${video.filename}):`,
+      err.message,
+    );
   }
 
   await invalidateVideoListCache();
@@ -197,7 +214,13 @@ export const incrementView = async ({ videoId, userId, io }) => {
 
   let acquiredLock = true;
   try {
-    acquiredLock = await redis.set(lockKey, "locked", "EX", VIEW_LOCK_TTL_SECONDS, "NX");
+    acquiredLock = await redis.set(
+      lockKey,
+      "locked",
+      "EX",
+      VIEW_LOCK_TTL_SECONDS,
+      "NX",
+    );
   } catch (err) {
     console.error("Redis lock failed:", err.message);
   }
@@ -223,7 +246,9 @@ export const incrementView = async ({ videoId, userId, io }) => {
     ]);
 
     if (io) {
-      io.to(`video_${videoId}`).emit("view_updated", { views: updatedVideo.views });
+      io.to(`video_${videoId}`).emit("view_updated", {
+        views: updatedVideo.views,
+      });
     }
 
     return { status: "ok", views: updatedVideo.views };
