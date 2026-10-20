@@ -137,6 +137,7 @@ export const getVideoStatus = async ({ videoId, userId }) => {
     select: {
       id: true,
       title: true,
+      status: true,
       isProcessed: true,
       hlsPath: true,
       userId: true,
