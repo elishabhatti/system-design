@@ -160,9 +160,7 @@ export const listVideos = async () => {
       visibility: Visibility.PUBLIC,
       AND: [
         { OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] },
-        // Don't list videos that can't be played yet. Legacy videos with
-        // manual `qualities` rows are still allowed.
-        { OR: [{ isProcessed: true }, { qualities: { some: {} } }] },
+        { OR: [{ status: "READY" }, { qualities: { some: {} }, status: { not: "DELETING" } }] },
       ],
     },
     include: {
