@@ -1,6 +1,8 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:3000";
+// Use the current origin by default. Vite proxies /socket.io during local
+// development and Nginx proxies it in production.
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
 // Module-level singleton. Every component that needs socket access should
 // import `socket` from here — NOT call `io(SOCKET_URL)` again themselves.
@@ -10,4 +12,5 @@ const SOCKET_URL = "http://localhost:3000";
 // client's connect/disconnect cycle was stepping on the other's.
 export const socket = io(SOCKET_URL, {
   autoConnect: true,
+  withCredentials: true,
 });

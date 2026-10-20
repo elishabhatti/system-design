@@ -1,7 +1,10 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost/api',
+  // Keep API calls on the browser's current origin. In production Nginx
+  // proxies /api to Express, so hard-coding localhost would otherwise make
+  // every remote visitor call their own machine after a refresh.
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   withCredentials: true,
 });
 
