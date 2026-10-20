@@ -23,6 +23,11 @@ const connection = {
 const HLS_ROOT = path.join(process.cwd(), "public", "hls");
 const TMP_ROOT = path.join(process.cwd(), "tmp", "transcode");
 
+// Sweeper: PROCESSING videos older than this are marked FAILED.
+// Long videos can take a while, raise this if needed.
+const STUCK_AFTER_MS = 60 * 60 * 1000; // 1 hour
+const SWEEP_EVERY_MS = 10 * 60 * 1000; // every 10 min
+
 // Ladder is LOWEST FIRST on purpose:
 //  1. the smallest rendition finishes in seconds -> video is playable almost
 //     immediately (we publish after the first rendition, not after all five)
@@ -109,10 +114,31 @@ function safeRmDir(dirPath) {
 }
 
 async function markPlayable({ videoId, videoTitle, userId, senderInfo }) {
-  await prisma.video.update({
-    where: { id: videoId },
-    data: { status: "READY",isProcessed: true, hlsPath: `/hls/${videoId}/master.m3u8` },
+  // Only PROCESSING -> READY. A video that is DELETING / FAILED / gone must
+  // never come back to life.
+  const { count } = await prisma.video.updateMany({
+    where: { id: videoId, status: "PROCESSING" },
+    data: {
+      status: "READY",
+      isProcessed: true,
+      hlsPath: `/hls/${videoId}/master.m3u8`,
+    },
   });
+
+  if (count === 0) {
+    const current = await prisma.video.findUnique({
+      where: { id: videoId },
+      select: { status: true },
+    });
+
+    // Job retry: already published earlier, don't notify subscribers twice.
+    if (current?.status === "READY") return;
+
+    // Deleted (row gone) or DELETING: triggers the "deleted mid-transcode" abort.
+    const err = new Error("Video is no longer processing");
+    err.code = "P2025";
+    throw err;
+  }
 
   try {
     await redis.del(CACHE_KEYS.ALL_VIDEOS);
@@ -193,7 +219,8 @@ async function handleTranscode(job) {
         await job.updateProgress(Math.round((successful.length / targets.length) * 100));
         console.log(`[Worker] ${target.label} ready for video ${videoId}`);
       } catch (err) {
-        // Video deleted while we were transcoding: stop, don't leave junk.
+        // Video deleted (or marked DELETING) while we were transcoding:
+        // stop, don't leave junk. The delete job cleans up the rest.
         if (err.code === "P2025") {
           console.warn(`[Worker] Video ${videoId} was deleted mid-transcode. Aborting.`);
           safeRmDir(videoDir);
@@ -217,9 +244,10 @@ async function handleTranscode(job) {
 }
 
 // ---------------------------------------------------------------------------
-// Job: delete assets (Cloudinary original + local HLS output)
-// Runs as a queue job so it is retried if Cloudinary is down, instead of
-// silently leaking storage forever.
+// Job: delete assets (Cloudinary original + local HLS output + DB row)
+// The API only marks the video DELETING and enqueues this job. The DB row is
+// removed LAST, so if anything here fails, BullMQ retries and nothing is
+// orphaned (the row still exists as proof that cleanup is pending).
 // ---------------------------------------------------------------------------
 async function handleDeleteAssets(job) {
   const { videoId, publicId } = job.data;
@@ -238,7 +266,16 @@ async function handleDeleteAssets(job) {
   await fs.promises.rm(path.join(HLS_ROOT, videoId), { recursive: true, force: true });
   await fs.promises.rm(path.join(TMP_ROOT, videoId), { recursive: true, force: true });
 
-  console.log(`[Worker] Assets deleted for video ${videoId}`);
+  // Last step. deleteMany so a retry with the row already gone doesn't crash.
+  await prisma.video.deleteMany({ where: { id: videoId } });
+
+  try {
+    await redis.del(CACHE_KEYS.ALL_VIDEOS);
+  } catch (err) {
+    console.error("[Worker] Redis invalidate failed:", err.message);
+  }
+
+  console.log(`[Worker] Assets + row deleted for video ${videoId}`);
   return { status: "deleted" };
 }
 
@@ -257,23 +294,46 @@ const videoWorker = new Worker(
 );
 
 videoWorker.on("completed", (job) => console.log(`Job ${job.id} (${job.name}) completed`));
+
 videoWorker.on("failed", async (job, err) => {
   console.log(`Job ${job?.id} (${job?.name}) failed: ${err.message}`);
   if (!job || job.name === "deleteVideoAssets") return;
 
-  // BullMQ retry kare to har attempt pe "failed" fire hota hai, sirf aakhri pe mark kar
+  // BullMQ retry: "failed" fires on every attempt, mark only on the last one.
   const isFinal = job.attemptsMade >= (job.opts.attempts ?? 1);
   if (!isFinal) return;
 
   try {
-    // updateMany: sirf PROCESSING ko FAILED karega, READY ya deleted ko nahi chhedega
-    await prisma.video.updateMany({
+    // updateMany: only PROCESSING -> FAILED. READY / DELETING / deleted untouched.
+    const { count } = await prisma.video.updateMany({
       where: { id: job.data.videoId, status: "PROCESSING" },
       data: { status: "FAILED" },
     });
+    if (count) {
+      try {
+        await redis.del(CACHE_KEYS.ALL_VIDEOS);
+      } catch (_) {}
+    }
   } catch (e) {
     console.error("[Worker] Could not mark FAILED:", e.message);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Sweeper: catches videos stuck in PROCESSING (e.g. worker crashed, job lost).
+// ---------------------------------------------------------------------------
+const sweeper = setInterval(async () => {
+  try {
+    const cutoff = new Date(Date.now() - STUCK_AFTER_MS);
+    const { count } = await prisma.video.updateMany({
+      where: { status: "PROCESSING", uploadedAt: { lt: cutoff } },
+      data: { status: "FAILED" },
+    });
+    if (count) console.log(`[Sweeper] ${count} stuck video(s) marked FAILED`);
+  } catch (e) {
+    console.error("[Sweeper] failed:", e.message);
+  }
+}, SWEEP_EVERY_MS);
+sweeper.unref(); // don't keep the process alive just for the sweeper
 
 export default videoWorker;
