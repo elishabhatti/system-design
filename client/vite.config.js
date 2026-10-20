@@ -6,13 +6,17 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      "/api": {
+        target: "http://localhost/api",
+        changeOrigin: true,
+      },
       "/socket.io": {
-        target: "http://localhost:3001", // backend ka wahi port jo tum chala rahe ho
+        target: "http://localhost:3001",
         ws: true,
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on("error", (err) => {
-            if (err.code === "ECONNRESET" || err.code === "EPIPE") return; // restart par normal
+            if (err.code === "ECONNRESET" || err.code === "EPIPE") return;
             console.error("[proxy error]", err);
           });
         },

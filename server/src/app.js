@@ -25,7 +25,7 @@ BigInt.prototype.toJSON = function () {
 
 // TODO: apne auth ke hisaab se badlo
 const AUTH_COOKIE_NAME = "token"; // tumhari login cookie ka naam
-const getUserIdFromPayload = (payload) => payload.id; // JWT payload ki field
+const getUserIdFromPayload = (payload) => payload.userId; // JWT payload ki field
 
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,64}$/; // room ids ki validation
 
