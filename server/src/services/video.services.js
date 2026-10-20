@@ -185,28 +185,21 @@ export const deleteVideoById = async ({ videoId, userId }) => {
   if (!video) return { status: "not_found" };
   if (video.userId !== userId) return { status: "forbidden" };
 
-  await prisma.video.delete({ where: { id: videoId } });
-
-  // Cloudinary + local HLS cleanup is a durable, retried queue job
-  // (see worker "deleteVideoAssets") instead of a fire-and-forget promise.
-  try {
-    await videoQueue.add(
-      "deleteVideoAssets",
-      { videoId, publicId: video.filename },
-      JOB_OPTS,
-    );
-  } catch (err) {
-    // DB row is already gone; log loudly so the orphan can be reconciled.
-    console.error(
-      `[ORPHAN] Could not enqueue asset cleanup for ${videoId} (${video.filename}):`,
-      err.message,
-    );
-  }
-
+  await prisma.video.update({
+    where: { id: videoId },
+    data: { status: "DELETING" },
+  });
   await invalidateVideoListCache();
+
+  // Fail ho to throw hone de: row DELETING me rahegi, user dobara delete kar sakta hai
+  await videoQueue.add(
+    "deleteVideoAssets",
+    { videoId, publicId: video.filename },
+    { ...JOB_OPTS, jobId: `delete-${videoId}` }
+  );
+
   return { status: "ok" };
 };
-
 // ---------- Views ----------
 export const incrementView = async ({ videoId, userId, io }) => {
   const lockKey = buildViewLockKey(userId, videoId);
