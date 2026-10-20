@@ -111,7 +111,7 @@ function safeRmDir(dirPath) {
 async function markPlayable({ videoId, videoTitle, userId, senderInfo }) {
   await prisma.video.update({
     where: { id: videoId },
-    data: { isProcessed: true, hlsPath: `/hls/${videoId}/master.m3u8` },
+    data: { status: "READY",isProcessed: true, hlsPath: `/hls/${videoId}/master.m3u8` },
   });
 
   try {
@@ -257,8 +257,23 @@ const videoWorker = new Worker(
 );
 
 videoWorker.on("completed", (job) => console.log(`Job ${job.id} (${job.name}) completed`));
-videoWorker.on("failed", (job, err) =>
-  console.log(`Job ${job?.id} (${job?.name}) failed: ${err.message}`)
-);
+videoWorker.on("failed", async (job, err) => {
+  console.log(`Job ${job?.id} (${job?.name}) failed: ${err.message}`);
+  if (!job || job.name === "deleteVideoAssets") return;
+
+  // BullMQ retry kare to har attempt pe "failed" fire hota hai, sirf aakhri pe mark kar
+  const isFinal = job.attemptsMade >= (job.opts.attempts ?? 1);
+  if (!isFinal) return;
+
+  try {
+    // updateMany: sirf PROCESSING ko FAILED karega, READY ya deleted ko nahi chhedega
+    await prisma.video.updateMany({
+      where: { id: job.data.videoId, status: "PROCESSING" },
+      data: { status: "FAILED" },
+    });
+  } catch (e) {
+    console.error("[Worker] Could not mark FAILED:", e.message);
+  }
+});
 
 export default videoWorker;
