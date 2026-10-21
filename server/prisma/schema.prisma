@@ -30,7 +30,7 @@ model User {
   email       String   @unique
   password    String // sirf hashed (bcrypt/argon2) store karo
   avatarUrl   String?
-  bannerUrl   String?
+  bannerUrl   String?  @db.VarChar(2000)
   bio         String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
