@@ -1,7 +1,7 @@
-import prisma from '../config/db.js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import redis from '../config/redis.js';
+import prisma from "../config/db.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import redis from "../config/redis.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -26,25 +26,29 @@ const profileCacheKey = (userId) => `user:profile:${userId}`;
 
 const cookieOptions = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
   maxAge: SEVEN_DAYS_MS,
 });
 
 const setAuthCookie = (res, userId) => {
-  const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
-  res.cookie('token', token, cookieOptions());
+  const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
+  res.cookie("token", token, cookieOptions());
 };
 
 const normalizeEmail = (email) =>
-  typeof email === 'string' ? email.trim().toLowerCase() : '';
+  typeof email === "string" ? email.trim().toLowerCase() : "";
 
 // Cache failures should never break the request
 const cacheUser = async (user) => {
   try {
-    await redis.setex(profileCacheKey(user.id), PROFILE_CACHE_TTL, JSON.stringify(user));
+    await redis.setex(
+      profileCacheKey(user.id),
+      PROFILE_CACHE_TTL,
+      JSON.stringify(user),
+    );
   } catch (err) {
-    console.error('Redis cache write failed:', err);
+    console.error("Redis cache write failed:", err);
   }
 };
 
@@ -52,7 +56,7 @@ const invalidateUserCache = async (userId) => {
   try {
     await redis.del(profileCacheKey(userId));
   } catch (err) {
-    console.error('Redis cache delete failed:', err);
+    console.error("Redis cache delete failed:", err);
   }
 };
 
@@ -63,25 +67,29 @@ export const register = async (req, res) => {
     const email = normalizeEmail(req.body.email);
 
     if (!channelName || !email || !password) {
-      return res.status(400).json({ error: 'All fields are required.' });
+      return res.status(400).json({ error: "All fields are required." });
     }
 
     if (password.length < MIN_PASSWORD_LENGTH) {
-      return res
-        .status(400)
-        .json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+      return res.status(400).json({
+        error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'Email already in use.' });
+      return res.status(400).json({ error: "Email already in use." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // select => password is never returned
     const newUser = await prisma.user.create({
-      data: { channelName: channelName.trim(), email, password: hashedPassword },
+      data: {
+        channelName: channelName.trim(),
+        email,
+        password: hashedPassword,
+      },
       select: userSelect,
     });
 
@@ -89,12 +97,12 @@ export const register = async (req, res) => {
     await cacheUser(newUser);
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: "User registered successfully",
       user: newUser,
     });
   } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ error: 'Server error during registration.' });
+    console.error("Registration error:", err);
+    res.status(500).json({ error: "Server error during registration." });
   }
 };
 
@@ -105,7 +113,9 @@ export const login = async (req, res) => {
     const email = normalizeEmail(req.body.email);
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
+      return res
+        .status(400)
+        .json({ error: "Email and password are required." });
     }
 
     // password is selected only for the compare, then stripped
@@ -115,12 +125,12 @@ export const login = async (req, res) => {
     });
 
     if (!userWithPassword) {
-      return res.status(400).json({ error: 'Invalid email or password.' });
+      return res.status(400).json({ error: "Invalid email or password." });
     }
 
     const isMatch = await bcrypt.compare(password, userWithPassword.password);
     if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid email or password.' });
+      return res.status(400).json({ error: "Invalid email or password." });
     }
 
     const { password: _password, ...user } = userWithPassword;
@@ -129,12 +139,12 @@ export const login = async (req, res) => {
     await cacheUser(user); // warm the cache so getMe is a HIT right after login
 
     res.json({
-      message: 'Logged in successfully',
+      message: "Logged in successfully",
       user,
     });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Server error during login.' });
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Server error during login." });
   }
 };
 
@@ -142,8 +152,8 @@ export const login = async (req, res) => {
 export const logout = (req, res) => {
   // Must use the same options (minus maxAge) or some browsers won't clear it
   const { maxAge, ...clearOptions } = cookieOptions();
-  res.clearCookie('token', clearOptions);
-  res.json({ message: 'Logged out successfully' });
+  res.clearCookie("token", clearOptions);
+  res.json({ message: "Logged out successfully" });
 };
 
 // ---------- Get current user (Redis cached) ----------
@@ -155,11 +165,11 @@ export const getMe = async (req, res) => {
     try {
       const cachedUser = await redis.get(cacheKey);
       if (cachedUser) {
-        res.setHeader('X-Cache', 'HIT');
+        res.setHeader("X-Cache", "HIT");
         return res.json(JSON.parse(cachedUser));
       }
     } catch (err) {
-      console.error('Redis cache read failed:', err);
+      console.error("Redis cache read failed:", err);
     }
 
     const user = await prisma.user.findUnique({
@@ -168,16 +178,16 @@ export const getMe = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found.' });
+      return res.status(404).json({ error: "User not found." });
     }
 
     await cacheUser(user);
 
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader("X-Cache", "MISS");
     res.json(user);
   } catch (err) {
-    console.error('Get me error:', err);
-    res.status(500).json({ error: 'Server error.' });
+    console.error("Get me error:", err);
+    res.status(500).json({ error: "Server error." });
   }
 };
 
@@ -200,10 +210,10 @@ export const updateProfile = async (req, res) => {
 
     await cacheUser(updatedUser);
 
-    res.json({ message: 'Profile updated successfully', user: updatedUser });
+    res.json({ message: "Profile updated successfully", user: updatedUser });
   } catch (err) {
-    console.error('Update profile error:', err);
-    res.status(500).json({ error: 'Server error while updating profile' });
+    console.error("Update profile error:", err);
+    res.status(500).json({ error: "Server error while updating profile" });
   }
 };
 
@@ -214,7 +224,9 @@ export const toggleSubscription = async (req, res) => {
     const { channelId } = req.params;
 
     if (subscriberId === channelId) {
-      return res.status(400).json({ error: 'Aap apne channel ko subscribe nahi kar sakte.' });
+      return res
+        .status(400)
+        .json({ error: "Aap apne channel ko subscribe nahi kar sakte." });
     }
 
     const existingSubscription = await prisma.subscription.findUnique({
@@ -234,7 +246,7 @@ export const toggleSubscription = async (req, res) => {
         await prisma.subscription.create({ data: { subscriberId, channelId } });
       } catch (err) {
         // P2002 = unique constraint: a concurrent request (double-click) already created it
-        if (err.code !== 'P2002') throw err;
+        if (err.code !== "P2002") throw err;
       }
       isSubscribed = true;
     }
@@ -252,8 +264,8 @@ export const toggleSubscription = async (req, res) => {
       subscriberCount,
     });
   } catch (error) {
-    console.error('Subscription error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Subscription error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -281,7 +293,7 @@ export const getAllSubscriptions = async (req, res) => {
 
     res.status(200).json({ success: true, subscriptions: subscribedChannels });
   } catch (error) {
-    console.error('Error fetching subscriptions:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error fetching subscriptions:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };

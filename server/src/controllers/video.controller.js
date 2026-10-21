@@ -1,34 +1,39 @@
-import * as videoService from '../services/video.services.js';
+import * as videoService from "../services/video.services.js";
 
 export const uploadVideo = async (req, res) => {
   try {
     const file = req.file; // getting the full file
     const userId = req.userId; // getting the userId
 
-    if (!file) { // if file dosent exist throw error
+    if (!file) {
+      // if file dosent exist throw error
       return res.status(400).json({ error: "Video file is required." });
-    } 
+    }
 
-    const video = await videoService.createVideo({ // creating the video with full fields
+    const video = await videoService.createVideo({
+      // creating the video with full fields
       fileMeta: file,
       payload: req.body,
       userId,
     });
 
-    return res.status(201).json({ // returning video created success
+    return res.status(201).json({
+      // returning video created success
       success: true,
-      message: "Video uploaded successfully! Background transcoding and notifications running.",
+      message:
+        "Video uploaded successfully! Background transcoding and notifications running.",
       video,
     });
-  } catch (error) { // throwing error
+  } catch (error) {
+    // throwing error
     console.error("Upload error:", error);
     return res.status(500).json({ error: error.message });
   }
-  };
+};
 
-  // NEW: lightweight status endpoint used by the upload page to poll until
-  // the worker has produced the first HLS rendition.
-  export const getVideoStatus = async (req, res) => {
+// NEW: lightweight status endpoint used by the upload page to poll until
+// the worker has produced the first HLS rendition.
+export const getVideoStatus = async (req, res) => {
   try {
     const result = await videoService.getVideoStatus({
       videoId: req.params.id,
@@ -39,7 +44,9 @@ export const uploadVideo = async (req, res) => {
       return res.status(404).json({ error: "Video not found." });
     }
     if (result.status === "forbidden") {
-      return res.status(403).json({ error: "You are not the owner of this video." });
+      return res
+        .status(403)
+        .json({ error: "You are not the owner of this video." });
     }
 
     return res.status(200).json({ success: true, video: result.video });
@@ -47,9 +54,9 @@ export const uploadVideo = async (req, res) => {
     console.error("Error fetching video status:", error);
     return res.status(500).json({ error: error.message });
   }
-  };
+};
 
-  export const getVideos = async (req, res) => {
+export const getVideos = async (req, res) => {
   try {
     const currentPort = process.env.PORT || 3000;
     const { videos, source } = await videoService.listVideos();
@@ -61,12 +68,12 @@ export const uploadVideo = async (req, res) => {
       servedByPort: currentPort,
     });
   } catch (error) {
-    console.error('Error fetching videos:', error);
+    console.error("Error fetching videos:", error);
     return res.status(500).json({ error: error.message });
   }
-  };
+};
 
-  export const deleteVideo = async (req, res) => {
+export const deleteVideo = async (req, res) => {
   try {
     const result = await videoService.deleteVideoById({
       videoId: req.params.id,
@@ -77,17 +84,19 @@ export const uploadVideo = async (req, res) => {
       return res.status(404).json({ error: "Video not found." });
     }
     if (result.status === "forbidden") {
-      return res.status(403).json({ error: "You are not the owner of this video." });
+      return res
+        .status(403)
+        .json({ error: "You are not the owner of this video." });
     }
 
     return res.status(200).json({ message: "Video deleted successfully." });
   } catch (error) {
-    console.error('Error deleting video:', error);
+    console.error("Error deleting video:", error);
     return res.status(500).json({ error: error.message });
   }
-  };
+};
 
-  export const incrementVideoView = async (req, res) => {
+export const incrementVideoView = async (req, res) => {
   try {
     const result = await videoService.incrementView({
       videoId: req.params.id,
@@ -96,7 +105,9 @@ export const uploadVideo = async (req, res) => {
     });
 
     if (result.status === "in_progress") {
-      return res.status(200).json({ success: true, message: "Request already in progress." });
+      return res
+        .status(200)
+        .json({ success: true, message: "Request already in progress." });
     }
 
     return res.status(200).json({ success: true, views: result.views });
@@ -104,9 +115,9 @@ export const uploadVideo = async (req, res) => {
     console.error("Error incrementing view:", error);
     return res.status(500).json({ error: error.message });
   }
-  };
+};
 
-  export const toggleVideoLike = async (req, res) => {
+export const toggleVideoLike = async (req, res) => {
   try {
     const result = await videoService.toggleLike({
       videoId: req.params.videoId,
