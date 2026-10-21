@@ -20,7 +20,9 @@ const compactNumber = new Intl.NumberFormat("en", { notation: "compact" });
 
 const timeAgo = (dateString) => {
   if (!dateString) return "";
-  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+  const seconds = Math.floor(
+    (Date.now() - new Date(dateString).getTime()) / 1000,
+  );
   const units = [
     [31536000, "year"],
     [2592000, "month"],
@@ -51,26 +53,42 @@ function VideoCardSkeleton() {
 }
 
 function VideoCard({ vid }) {
+  const [hovering, setHovering] = useState(false);
   const channelName = vid.user?.channelName || "Unknown channel";
   const avatarUrl = vid.user?.avatarUrl;
+  // Cloudinary URL se chhoti jpg frame (0.5s pe, 480px wide)
+  const thumbUrl = (url) =>
+    url
+      ?.replace("/upload/", "/upload/so_25p,w_480,ar_16:9,c_fill,q_auto/")
+      .replace(/\.[^/.]+$/, ".jpg");
+  // Hover preview: sirf 6 second ka halka clip
+  const previewUrl = (url) =>
+    url?.replace("/upload/", "/upload/so_25p,du_6,w_480,q_auto:low/");
 
   return (
     <Link to={`/watch/${vid.id}`} className="group block">
       {/* Thumbnail */}
-      <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900">
-        <video
-          src={vid.filepath ? `${vid.filepath}#t=0.5` : undefined}
-          preload="metadata"
-          muted
-          loop
-          playsInline
+      <div
+        className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900"
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        <img
+          src={thumbUrl(vid.filepath)}
+          alt=""
+          loading="lazy"
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-          onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-          onMouseLeave={(e) => {
-            e.currentTarget.pause();
-            e.currentTarget.currentTime = 0.5;
-          }}
         />
+        {hovering && (
+          <video
+            src={previewUrl(vid.filepath)}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
 
         {vid.isLive ? (
           <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
@@ -90,7 +108,11 @@ function VideoCard({ vid }) {
       <div className="mt-3 flex gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-xs font-semibold text-zinc-200">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            <img
+              src={avatarUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
             channelName[0].toUpperCase()
           )}
@@ -100,7 +122,9 @@ function VideoCard({ vid }) {
           <h3 className="line-clamp-2 text-[14px] font-medium leading-snug text-white">
             {vid.title}
           </h3>
-          <p className="mt-1 truncate text-[13px] text-zinc-400">{channelName}</p>
+          <p className="mt-1 truncate text-[13px] text-zinc-400">
+            {channelName}
+          </p>
           <p className="flex items-center gap-1.5 text-[13px] text-zinc-500">
             <span>{compactNumber.format(vid.views ?? 0)} views</span>
             {vid.uploadedAt && (
@@ -154,7 +178,7 @@ export default function Home() {
     return videos.filter(
       (v) =>
         v.category?.toLowerCase() === wanted ||
-        v.tags?.toString().toLowerCase().includes(wanted)
+        v.tags?.toString().toLowerCase().includes(wanted),
     );
   }, [videos, activeCategory]);
 
@@ -185,7 +209,9 @@ export default function Home() {
       {/* Feed */}
       <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-9 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {loading &&
-          Array.from({ length: 10 }).map((_, i) => <VideoCardSkeleton key={i} />)}
+          Array.from({ length: 10 }).map((_, i) => (
+            <VideoCardSkeleton key={i} />
+          ))}
 
         {!loading &&
           visibleVideos.map((vid) => <VideoCard key={vid.id} vid={vid} />)}
@@ -195,8 +221,12 @@ export default function Home() {
       {!loading && error && (
         <div className="flex flex-col items-center py-32 text-center">
           <WifiOff className="h-8 w-8 text-zinc-600" />
-          <p className="mt-4 text-sm font-medium text-zinc-200">Couldn't load the feed</p>
-          <p className="mt-1 text-xs text-zinc-500">Check your connection and try again.</p>
+          <p className="mt-4 text-sm font-medium text-zinc-200">
+            Couldn't load the feed
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Check your connection and try again.
+          </p>
           <button
             onClick={load}
             className="mt-5 flex cursor-pointer items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-zinc-200"
@@ -210,7 +240,9 @@ export default function Home() {
       {!loading && !error && visibleVideos.length === 0 && (
         <div className="flex flex-col items-center py-32 text-center">
           <Eye className="h-8 w-8 text-zinc-600" />
-          <p className="mt-4 text-sm font-medium text-zinc-200">Nothing here yet</p>
+          <p className="mt-4 text-sm font-medium text-zinc-200">
+            Nothing here yet
+          </p>
           <p className="mt-1 text-xs text-zinc-500">
             {activeCategory === "All"
               ? "No videos have been published."
