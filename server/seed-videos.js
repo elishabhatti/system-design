@@ -1,6 +1,6 @@
 // Usage: node seed-videos.js
 // 100k fake videos, jaanboojh ke ganda tags data (case, spaces, khali, duplicates)
-const { PrismaClient } = require("@prisma/client");
+import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const TOTAL = 100_000;

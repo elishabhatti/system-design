@@ -1,6 +1,6 @@
 // Usage: node backfill-tags.js
 // Batches me chalta hai, id cursor se resume hota hai, dobara chalao to bhi safe (skipDuplicates)
-const { PrismaClient } = require("@prisma/client");
+import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const BATCH = 1000;
