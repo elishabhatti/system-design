@@ -3,6 +3,7 @@ import prisma from "../config/db.js";
 import redis from "../config/redis.js";
 import { videoQueue } from "../queues/videoQueues.js";
 import { buildViewLockKey, CACHE_KEYS } from "../constants/cache.keys.js";
+import { parseTags } from "../utils/parseTags.js";
 
 const VIDEO_LIST_CACHE_TTL_SECONDS = 300;
 const VIEW_LOCK_TTL_SECONDS = 10;
@@ -79,6 +80,15 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
     scheduledFor,
   } = payload;
 
+  // NEW: tags ko normalize karo, aur naye Tag table me pehle bana do
+  const names = parseTags(tags);
+  if (names.length) {
+    await prisma.tag.createMany({
+      data: names.map((name) => ({ name })),
+      skipDuplicates: true,
+    });
+  }
+
   const video = await prisma.video.create({
     data: {
       title: title || fileMeta.originalname,
@@ -88,7 +98,11 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
       filesize: fileMeta.size,
       mimetype: fileMeta.mimetype,
       category: category || "General",
-      tags: tags || "",
+      tags: tags || "", // purani string abhi bhi likho (expand phase)
+      // NEW: naye tables me bhi link
+      videoTags: {
+        create: names.map((name) => ({ tag: { connect: { name } } })),
+      },
       isMadeForKids: toBool(isMadeForKids),
       ageRestricted: toBool(ageRestricted),
       visibility: toVisibility(visibility),
