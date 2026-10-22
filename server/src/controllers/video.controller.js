@@ -2,30 +2,26 @@ import * as videoService from "../services/video.services.js";
 
 export const uploadVideo = async (req, res) => {
   try {
-    const file = req.file; // getting the full file
-    const userId = req.userId; // getting the userId
+    const file = req.file;
+    const userId = req.userId;
 
     if (!file) {
-      // if file dosent exist throw error
       return res.status(400).json({ error: "Video file is required." });
     }
 
     const video = await videoService.createVideo({
-      // creating the video with full fields
       fileMeta: file,
       payload: req.body,
       userId,
     });
 
     return res.status(201).json({
-      // returning video created success
       success: true,
       message:
         "Video uploaded successfully! Background transcoding and notifications running.",
       video,
     });
   } catch (error) {
-    // throwing error
     console.error("Upload error:", error);
     return res.status(500).json({ error: error.message });
   }
