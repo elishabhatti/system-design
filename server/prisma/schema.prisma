@@ -56,7 +56,7 @@ model Video {
   mimetype      String
   thumbnailUrl  String?
   category      String?     @default("General")
-  tags          String?
+  tags          String? // DEPRECATED: videoTags use karo. Contract step mein hatana (pehle usage check)
   isMadeForKids Boolean     @default(false)
   ageRestricted Boolean     @default(false)
   visibility    Visibility  @default(PRIVATE)
@@ -74,10 +74,31 @@ model Video {
   likes       Like[]
   comments    Comment[]
   qualities   VideoQuality[]
+  videoTags   VideoTag[] // NEW (expand step)
 
   @@index([userId, uploadedAt]) // channel page
   @@index([visibility, status, uploadedAt]) // public home feed
   @@index([category, uploadedAt]) // category feed
+}
+
+// NEW (expand step): har tag ek hi baar, lowercase normalized
+model Tag {
+  id   String @id @default(uuid())
+  name String @unique
+
+  videos VideoTag[]
+}
+
+// NEW (expand step): Video <-> Tag many-to-many join table
+model VideoTag {
+  videoId String
+  tagId   String
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([videoId, tagId]) // duplicate link nahi ban sakta
+  @@index([tagId]) // "is tag ki saari videos" query
 }
 
 model VideoQuality {
