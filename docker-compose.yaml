@@ -1,0 +1,41 @@
+# DB Replicas.
+# Primary: localhost:3307   Replica: localhost:3308
+services:
+  mysql-primary:
+    image: mysql:8.0
+    container_name: mysql-primary
+    command: >
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3307:3306"
+    volumes:
+      - primary_data:/var/lib/mysql
+
+  mysql-replica:
+    image: mysql:8.0
+    container_name: mysql-replica
+    command: >
+      --server-id=2
+      --relay-log=relay-bin
+      --log-bin=mysql-bin
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+      --read-only=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3308:3306"
+    volumes:
+      - replica_data:/var/lib/mysql
+    depends_on:
+      - mysql-primary
+
+volumes:
+  primary_data:
+  replica_data:
