@@ -1,5 +1,5 @@
-# DB Replicas.
-# Primary: localhost:3307   Replica: localhost:3308
+# Main DB: Primary localhost:3307, Replica localhost:3308
+# Shards:  shard-1 localhost:3309, shard-2 localhost:3310
 services:
   mysql-primary:
     image: mysql:8.0
@@ -27,6 +27,7 @@ services:
       --gtid-mode=ON
       --enforce-gtid-consistency=ON
       --read-only=ON
+      --super-read-only=ON
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
     ports:
@@ -36,6 +37,32 @@ services:
     depends_on:
       - mysql-primary
 
+  shard-1:
+    image: mysql:8.0
+    container_name: shard-1
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: orbit_shard
+    ports:
+      - "3309:3306"
+    volumes:
+      - shard1_data:/var/lib/mysql
+      - ./shard-init:/docker-entrypoint-initdb.d:ro
+
+  shard-2:
+    image: mysql:8.0
+    container_name: shard-2
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: orbit_shard
+    ports:
+      - "3310:3306"
+    volumes:
+      - shard2_data:/var/lib/mysql
+      - ./shard-init:/docker-entrypoint-initdb.d:ro
+
 volumes:
   primary_data:
   replica_data:
+  shard1_data:
+  shard2_data:
