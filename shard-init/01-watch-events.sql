@@ -1,0 +1,17 @@
+USE orbit_shard;
+
+CREATE TABLE watch_events (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  video_id CHAR(36) NOT NULL,
+  user_id CHAR(36) NOT NULL,
+  watched_seconds INT NOT NULL,
+  created_at DATETIME NOT NULL,
+  PRIMARY KEY (id, created_at),
+  INDEX idx_video (video_id, created_at)
+)
+PARTITION BY RANGE COLUMNS (created_at) (
+  PARTITION p2026_10 VALUES LESS THAN ('2026-11-01'),
+  PARTITION p2026_11 VALUES LESS THAN ('2026-12-01'),
+  PARTITION p2026_12 VALUES LESS THAN ('2027-01-01'),
+  PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);
