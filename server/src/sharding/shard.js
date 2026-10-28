@@ -1,5 +1,5 @@
-const mysql = require('mysql2/promise');
-const crypto = require('crypto');
+import mysql from 'mysql2/promise';
+import crypto from 'crypto';
 
 const SHARDS = [
   { host: '127.0.0.1', port: 3309 }, // shard-1
