@@ -1,5 +1,5 @@
-const crypto = require('crypto');
-const { pools, getShardIndex } = require('./shards');
+const { pools, getShardIndex } = "./shard.js";
+import crypto from 'crypto';
 
 const VIDEOS = Array.from({ length: 50 }, () => crypto.randomUUID());
 const USERS = Array.from({ length: 200 }, () => crypto.randomUUID());
