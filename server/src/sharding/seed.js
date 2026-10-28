@@ -1,4 +1,4 @@
-const { pools, getShardIndex } = "./shard.js";
+import { pools, getShardIndex } = "./shard.js";
 import crypto from 'crypto';
 
 const VIDEOS = Array.from({ length: 50 }, () => crypto.randomUUID());
