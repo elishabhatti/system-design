@@ -1,9 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
 const isProd = process.env.NODE_ENV === 'production';
-const prismaWrite = new PrismaClient({ datasourceUrl: process.env.DB_PRIMARY_URL });
-const prismaRead  = new PrismaClient({ datasourceUrl: process.env.DB_REPLICA_URL });
 
+// Primary: sab writes + jin reads ko latest data chahiye
 const prisma = new PrismaClient({
   log: isProd
     ? ['error']
@@ -12,6 +11,12 @@ const prisma = new PrismaClient({
         { emit: 'stdout', level: 'warn' },
         { emit: 'stdout', level: 'error' },
       ],
+});
+
+// Replica: sirf stale-tolerant reads (abhi sirf listVideos)
+export const prismaRead = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_REPLICA_URL,
+  log: isProd ? ['error'] : ['warn', 'error'],
 });
 
 // Dev mein sirf slow queries dikhao (200ms se upar)
