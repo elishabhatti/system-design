@@ -28,7 +28,7 @@ import { useQualityOptions } from "../hooks/useQualityOptions";
 
 // Backend origin: HLS playlists/segments are served by the backend (via Nginx).
 // Normalised so it never ends with "/" or "/api" -- either would break the HLS URL.
-const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost")
+const API_ORIGIN = (import.meta.env.VITE_API_URL || window.location.origin)
   .replace(/\/+$/, "")
   .replace(/\/api$/, "");
 
