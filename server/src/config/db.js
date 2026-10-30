@@ -1,7 +1,8 @@
-// src/lib/prisma.js
 import { PrismaClient } from '@prisma/client';
 
 const isProd = process.env.NODE_ENV === 'production';
+const prismaWrite = new PrismaClient({ datasourceUrl: process.env.DB_PRIMARY_URL });
+const prismaRead  = new PrismaClient({ datasourceUrl: process.env.DB_REPLICA_URL });
 
 const prisma = new PrismaClient({
   log: isProd
