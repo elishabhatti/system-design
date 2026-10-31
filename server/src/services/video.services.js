@@ -5,8 +5,14 @@ import { videoQueue } from "../queues/videoQueues.js";
 import { buildViewLockKey, CACHE_KEYS } from "../constants/cache.keys.js";
 import { parseTags } from "../utils/parseTags.js";
 
-const VIDEO_LIST_CACHE_TTL_SECONDS = 300;
+// Feed cache: max staleness ab 60s (pehle 300s tha)
+const VIDEO_LIST_CACHE_TTL_SECONDS = 60;
 const VIEW_LOCK_TTL_SECONDS = 10;
+
+// Write ke baad itni der tak feed PRIMARY se padhega (replica lag se bara rakho).
+// Is se "zombie video" aur "stale cache refill" dono bug band hote hain.
+const PRIMARY_WINDOW_SECONDS = 10;
+const PRIMARY_WINDOW_KEY = "videos:list:primary-window";
 
 // Retries with backoff so a temporary Redis/Cloudinary/ffmpeg hiccup
 // doesn't permanently orphan a video or its storage.
@@ -59,15 +65,18 @@ const cacheSet = async (key, ttl, value) => {
   }
 };
 
+// Har write ke baad: cache hatao AUR "primary window" kholo
 const invalidateVideoListCache = async () => {
   try {
     await redis.del(CACHE_KEYS.ALL_VIDEOS);
+    await redis.setex(PRIMARY_WINDOW_KEY, PRIMARY_WINDOW_SECONDS, "1");
   } catch (err) {
     console.error("Redis invalidate failed:", err.message);
   }
 };
 
 // ---------- Create ----------
+// Level: STRONG (primary pe write). Uploader ko response primary se milta hai.
 export const createVideo = async ({ fileMeta, payload, userId }) => {
   const {
     title,
@@ -145,6 +154,7 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
 };
 
 // ---------- Get one (used by the upload page to poll processing status) ----------
+// Level: READ-YOUR-WRITES. Primary se padhta hai, kyunke worker status primary pe likhta hai.
 export const getVideoStatus = async ({ videoId, userId }) => {
   const video = await prisma.video.findUnique({
     where: { id: videoId },
@@ -163,13 +173,20 @@ export const getVideoStatus = async ({ videoId, userId }) => {
 };
 
 // ---------- List ----------
+// Level: EVENTUAL (replica + cache), lekin kisi write ke baad PRIMARY_WINDOW_SECONDS
+// tak primary se padhta hai. Is se:
+//   - delete ke baad video feed me wapas nahi aati (zombie video fix)
+//   - like/upload ke baad stale replica data cache me nahi bharta (cache poisoning fix)
 export const listVideos = async () => {
   const cached = await cacheGet(CACHE_KEYS.ALL_VIDEOS);
   if (cached) {
     return { videos: JSON.parse(cached), source: "cache" };
   }
 
-  const videos = await prismaRead.video.findMany({
+  const inPrimaryWindow = Boolean(await cacheGet(PRIMARY_WINDOW_KEY));
+  const db = inPrimaryWindow ? prisma : prismaRead;
+
+  const videos = await db.video.findMany({
     where: {
       visibility: Visibility.PUBLIC,
       AND: [
@@ -194,10 +211,14 @@ export const listVideos = async () => {
   });
 
   await cacheSet(CACHE_KEYS.ALL_VIDEOS, VIDEO_LIST_CACHE_TTL_SECONDS, videos);
-  return { videos, source: "replica-db" };
+  return {
+    videos,
+    source: inPrimaryWindow ? "primary-window" : "replica-db",
+  };
 };
 
 // ---------- Delete ----------
+// Level: STRONG (read + write dono primary pe), aur feed ke liye primary window khulti hai.
 export const deleteVideoById = async ({ videoId, userId }) => {
   const video = await prisma.video.findUnique({ where: { id: videoId } });
 
@@ -219,7 +240,9 @@ export const deleteVideoById = async ({ videoId, userId }) => {
 
   return { status: "ok" };
 };
+
 // ---------- Views ----------
+// Level: STRONG (primary pe transaction). Feed me view count eventual hai.
 export const incrementView = async ({ videoId, userId, io }) => {
   const lockKey = buildViewLockKey(userId, videoId);
 
@@ -277,6 +300,8 @@ export const incrementView = async ({ videoId, userId, io }) => {
 };
 
 // ---------- Likes ----------
+// Level: READ-YOUR-WRITES. likeCount primary se aata hai (liker ko apna like turant dikhe),
+// feed ka count eventual hai, par primary window ki wajah se stale cache nahi bharta.
 export const toggleLike = async ({ videoId, userId, io }) => {
   const video = await prisma.video.findUnique({
     where: { id: videoId },
