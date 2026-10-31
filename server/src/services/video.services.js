@@ -1,5 +1,5 @@
 import { Visibility } from "@prisma/client";
-import prisma, {prismaRead} from "../config/db.js";
+import prisma, { prismaRead } from "../config/db.js";
 import redis from "../config/redis.js";
 import { videoQueue } from "../queues/videoQueues.js";
 import { buildViewLockKey, CACHE_KEYS } from "../constants/cache.keys.js";
@@ -169,12 +169,17 @@ export const listVideos = async () => {
     return { videos: JSON.parse(cached), source: "cache" };
   }
 
-  const videos = await prisma.video.findMany({
+  const videos = await prismaRead.video.findMany({
     where: {
       visibility: Visibility.PUBLIC,
       AND: [
         { OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] },
-        { OR: [{ status: "READY" }, { qualities: { some: {} }, status: { not: "DELETING" } }] },
+        {
+          OR: [
+            { status: "READY" },
+            { qualities: { some: {} }, status: { not: "DELETING" } },
+          ],
+        },
       ],
     },
     include: {
@@ -209,7 +214,7 @@ export const deleteVideoById = async ({ videoId, userId }) => {
   await videoQueue.add(
     "deleteVideoAssets",
     { videoId, publicId: video.filename },
-    { ...JOB_OPTS, jobId: `delete-${videoId}` }
+    { ...JOB_OPTS, jobId: `delete-${videoId}` },
   );
 
   return { status: "ok" };
