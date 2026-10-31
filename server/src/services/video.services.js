@@ -194,7 +194,7 @@ export const listVideos = async () => {
   });
 
   await cacheSet(CACHE_KEYS.ALL_VIDEOS, VIDEO_LIST_CACHE_TTL_SECONDS, videos);
-  return { videos, source: "database" };
+  return { videos, source: "replica-db" };
 };
 
 // ---------- Delete ----------
