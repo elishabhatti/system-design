@@ -1,141 +1,215 @@
-import * as userService from "../services/user.services.js";
+import prisma from "../config/db.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import redis from "../config/redis.js";
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const PROFILE_CACHE_TTL = 3600; // 1 hour
+const MIN_PASSWORD_LENGTH = 8;
 
-// Cookie HTTP ka kaam hai, isliye controller mein rahi
-const cookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
-  maxAge: SEVEN_DAYS_MS,
-});
+// Login pe user na mile tab bhi bcrypt chalta hai, taake timing se email guess na ho
+const DUMMY_HASH = bcrypt.hashSync("dummy-password", 10);
 
-const setAuthCookie = (res, token) => res.cookie("token", token, cookieOptions());
+// ---------- Helpers ----------
+
+// One source of truth for the user shape
+export const userSelect = {
+  id: true,
+  channelName: true,
+  email: true,
+  avatarUrl: true,
+  bio: true,
+  createdAt: true,
+  bannerUrl: true,
+  subscribers: true,
+};
+
+const profileCacheKey = (userId) => `user:profile:${userId}`;
+
+// Secret function ke andar padhte hain (module load pe nahi), warna dotenv
+// late load ho to JWT_SECRET undefined reh jata hai
+export const signToken = (userId) =>
+  jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+const normalizeEmail = (email) =>
+  typeof email === "string" ? email.trim().toLowerCase() : "";
+
+// Cache best-effort hai: Redis down ho to API na mare
+const cacheUser = async (user) => {
+  try {
+    await redis.setex(
+      profileCacheKey(user.id),
+      PROFILE_CACHE_TTL,
+      JSON.stringify(user),
+    );
+  } catch (err) {
+    console.error("Redis cache write failed:", err.message);
+  }
+};
+
+const invalidateUserCache = async (userId) => {
+  try {
+    await redis.del(profileCacheKey(userId));
+  } catch (err) {
+    console.error("Redis cache delete failed:", err.message);
+  }
+};
 
 // ---------- Register ----------
-export const register = async (req, res) => {
+// Level: STRONG (primary). Unique index email pe race handle karta hai.
+export const registerUser = async ({ channelName, email, password }) => {
+  const cleanEmail = normalizeEmail(email);
+
+  if (!channelName || !cleanEmail || !password) {
+    return { status: "invalid", error: "All fields are required." };
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      status: "invalid",
+      error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    };
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
   try {
-    const result = await userService.registerUser(req.body);
+    const user = await prisma.user.create({
+      data: {
+        channelName: channelName.trim(),
+        email: cleanEmail,
+        password: hashedPassword,
+      },
+      select: userSelect,
+    });
 
-    if (result.status === "invalid") {
-      return res.status(400).json({ error: result.error });
-    }
-    if (result.status === "email_taken") {
-      return res.status(400).json({ error: "Email already in use." });
-    }
-
-    setAuthCookie(res, result.token);
-    return res
-      .status(201)
-      .json({ message: "User registered successfully", user: result.user });
+    await cacheUser(user);
+    return { status: "ok", user, token: signToken(user.id) };
   } catch (err) {
-    console.error("Registration error:", err);
-    return res.status(500).json({ error: "Server error during registration." });
+    // P2002 = unique constraint (email). findUnique-then-create wali race yahin pakri jati hai
+    if (err.code === "P2002") return { status: "email_taken" };
+    throw err;
   }
 };
 
 // ---------- Login ----------
-export const login = async (req, res) => {
-  try {
-    const result = await userService.loginUser(req.body);
+export const loginUser = async ({ email, password }) => {
+  const cleanEmail = normalizeEmail(email);
 
-    if (result.status === "invalid") {
-      return res.status(400).json({ error: result.error });
-    }
-    if (result.status === "invalid_credentials") {
-      return res.status(400).json({ error: "Invalid email or password." });
-    }
-
-    setAuthCookie(res, result.token);
-    return res.json({ message: "Logged in successfully", user: result.user });
-  } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({ error: "Server error during login." });
+  if (!cleanEmail || !password) {
+    return { status: "invalid", error: "Email and password are required." };
   }
+
+  const userWithPassword = await prisma.user.findUnique({
+    where: { email: cleanEmail },
+    select: { ...userSelect, password: true },
+  });
+
+  const isMatch = await bcrypt.compare(
+    password,
+    userWithPassword?.password ?? DUMMY_HASH,
+  );
+
+  if (!userWithPassword || !isMatch) {
+    return { status: "invalid_credentials" };
+  }
+
+  const { password: _password, ...user } = userWithPassword;
+
+  await cacheUser(user); // getMe login ke foran baad HIT ho
+  return { status: "ok", user, token: signToken(user.id) };
 };
 
-// ---------- Logout ----------
-export const logout = (req, res) => {
-  // Same options (minus maxAge), warna kuch browsers cookie clear nahi karte
-  const { maxAge, ...clearOptions } = cookieOptions();
-  res.clearCookie("token", clearOptions);
-  return res.json({ message: "Logged out successfully" });
-};
-
-// ---------- Get current user ----------
-export const getMe = async (req, res) => {
+// ---------- Get current user (Redis cached) ----------
+// Level: EVENTUAL (cache), miss pe primary se.
+export const getCurrentUser = async ({ userId }) => {
   try {
-    const result = await userService.getCurrentUser({ userId: req.userId });
-
-    if (result.status === "not_found") {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    res.setHeader("X-Cache", result.source);
-    return res.json(result.user);
+    const cached = await redis.get(profileCacheKey(userId));
+    if (cached) return { status: "ok", user: JSON.parse(cached), source: "HIT" };
   } catch (err) {
-    console.error("Get me error:", err);
-    return res.status(500).json({ error: "Server error." });
+    console.error("Redis cache read failed:", err.message);
   }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: userSelect,
+  });
+  if (!user) return { status: "not_found" };
+
+  await cacheUser(user);
+  return { status: "ok", user, source: "MISS" };
 };
 
 // ---------- Update profile ----------
-export const updateProfile = async (req, res) => {
-  try {
-    const result = await userService.updateUserProfile({
-      userId: req.userId,
-      data: req.body,
-    });
+// Level: STRONG (primary pe write), phir cache refresh.
+export const updateUserProfile = async ({ userId, data }) => {
+  const { channelName, bio, avatarUrl, bannerUrl } = data;
 
-    return res.json({
-      message: "Profile updated successfully",
-      user: result.user,
-    });
-  } catch (err) {
-    console.error("Update profile error:", err);
-    return res
-      .status(500)
-      .json({ error: "Server error while updating profile" });
-  }
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(channelName && { channelName: channelName.trim() }),
+      ...(bio !== undefined && { bio }),
+      ...(avatarUrl !== undefined && { avatarUrl }),
+      ...(bannerUrl !== undefined && { bannerUrl }),
+    },
+    select: userSelect,
+  });
+
+  await cacheUser(user);
+  return { status: "ok", user };
 };
 
 // ---------- Toggle subscription ----------
-export const toggleSubscription = async (req, res) => {
-  try {
-    const result = await userService.toggleSubscription({
-      subscriberId: req.userId,
-      channelId: req.params.channelId,
-    });
+// Level: STRONG. Composite unique (subscriberId, channelId) double-click race rokta hai.
+export const toggleSubscription = async ({ subscriberId, channelId }) => {
+  if (subscriberId === channelId) return { status: "self_subscribe" };
 
-    if (result.status === "self_subscribe") {
-      return res
-        .status(400)
-        .json({ error: "Aap apne channel ko subscribe nahi kar sakte." });
-    }
-    if (result.status === "not_found") {
-      return res.status(404).json({ error: "Channel not found." });
-    }
+  const removed = await prisma.subscription.deleteMany({
+    where: { subscriberId, channelId },
+  });
 
-    return res.status(200).json({
-      success: true,
-      isSubscribed: result.isSubscribed,
-      subscriberCount: result.subscriberCount,
-    });
-  } catch (err) {
-    console.error("Subscription error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+  let isSubscribed = false;
+
+  if (removed.count === 0) {
+    try {
+      await prisma.subscription.create({ data: { subscriberId, channelId } });
+      isSubscribed = true;
+    } catch (err) {
+      if (err.code === "P2002") {
+        isSubscribed = true; // concurrent request pehle bana chuki
+      } else if (err.code === "P2003") {
+        return { status: "not_found" }; // channel exist nahi karta
+      } else {
+        throw err;
+      }
+    }
   }
+
+  const subscriberCount = await prisma.subscription.count({
+    where: { channelId },
+  });
+
+  // Channel ke cached profile mein subscribers hai, ab stale
+  await invalidateUserCache(channelId);
+
+  return { status: "ok", isSubscribed, subscriberCount };
 };
 
 // ---------- Get all subscriptions ----------
-export const getAllSubscriptions = async (req, res) => {
-  try {
-    const result = await userService.getUserSubscriptions({
-      userId: req.userId,
-    });
-    return res.status(200).json({ success: true, subscriptions: result.channels });
-  } catch (err) {
-    console.error("Error fetching subscriptions:", err);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+export const getUserSubscriptions = async ({ userId }) => {
+  const subscriptions = await prisma.subscription.findMany({
+    where: { subscriberId: userId },
+    include: {
+      channel: {
+        select: {
+          id: true,
+          channelName: true,
+          avatarUrl: true,
+          bio: true,
+          bannerUrl: true,
+        },
+      },
+    },
+  });
+
+  return { status: "ok", channels: subscriptions.map((s) => s.channel) };
 };
