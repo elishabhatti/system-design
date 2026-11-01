@@ -1,29 +1,8 @@
-import prisma from "../config/db.js";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import redis from "../config/redis.js";
+import * as userService from "../services/user.services.js";
 
-const JWT_SECRET = process.env.JWT_SECRET;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const PROFILE_CACHE_TTL = 3600; // 1 hour
-const MIN_PASSWORD_LENGTH = 8;
 
-// ---------- Shared helpers ----------
-
-// One source of truth for the user shape returned by every endpoint
-const userSelect = {
-  id: true,
-  channelName: true,
-  email: true,
-  avatarUrl: true,
-  bio: true,
-  createdAt: true,
-  bannerUrl: true,
-  subscribers: true,
-};
-
-const profileCacheKey = (userId) => `user:profile:${userId}`;
-
+// Cookie HTTP ka kaam hai, isliye controller mein rahi
 const cookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -31,269 +10,132 @@ const cookieOptions = () => ({
   maxAge: SEVEN_DAYS_MS,
 });
 
-const setAuthCookie = (res, userId) => {
-  const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
-  res.cookie("token", token, cookieOptions());
-};
-
-const normalizeEmail = (email) =>
-  typeof email === "string" ? email.trim().toLowerCase() : "";
-
-// Cache failures should never break the request
-const cacheUser = async (user) => {
-  try {
-    await redis.setex(
-      profileCacheKey(user.id),
-      PROFILE_CACHE_TTL,
-      JSON.stringify(user),
-    );
-  } catch (err) {
-    console.error("Redis cache write failed:", err);
-  }
-};
-
-const invalidateUserCache = async (userId) => {
-  try {
-    await redis.del(profileCacheKey(userId));
-  } catch (err) {
-    console.error("Redis cache delete failed:", err);
-  }
-};
+const setAuthCookie = (res, token) => res.cookie("token", token, cookieOptions());
 
 // ---------- Register ----------
 export const register = async (req, res) => {
   try {
-    const { channelName, password } = req.body;
-    const email = normalizeEmail(req.body.email);
+    const result = await userService.registerUser(req.body);
 
-    if (!channelName || !email || !password) {
-      return res.status(400).json({ error: "All fields are required." });
+    if (result.status === "invalid") {
+      return res.status(400).json({ error: result.error });
     }
-
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({
-        error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-      });
-    }
-
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    if (result.status === "email_taken") {
       return res.status(400).json({ error: "Email already in use." });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // select => password is never returned
-    const newUser = await prisma.user.create({
-      data: {
-        channelName: channelName.trim(),
-        email,
-        password: hashedPassword,
-      },
-      select: userSelect,
-    });
-
-    setAuthCookie(res, newUser.id);
-    await cacheUser(newUser);
-
-    res.status(201).json({
-      message: "User registered successfully",
-      user: newUser,
-    });
+    setAuthCookie(res, result.token);
+    return res
+      .status(201)
+      .json({ message: "User registered successfully", user: result.user });
   } catch (err) {
     console.error("Registration error:", err);
-    res.status(500).json({ error: "Server error during registration." });
+    return res.status(500).json({ error: "Server error during registration." });
   }
 };
 
 // ---------- Login ----------
 export const login = async (req, res) => {
   try {
-    const { password } = req.body;
-    const email = normalizeEmail(req.body.email);
+    const result = await userService.loginUser(req.body);
 
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ error: "Email and password are required." });
+    if (result.status === "invalid") {
+      return res.status(400).json({ error: result.error });
     }
-
-    // password is selected only for the compare, then stripped
-    const userWithPassword = await prisma.user.findUnique({
-      where: { email },
-      select: { ...userSelect, password: true },
-    });
-
-    if (!userWithPassword) {
+    if (result.status === "invalid_credentials") {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
-    const isMatch = await bcrypt.compare(password, userWithPassword.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: "Invalid email or password." });
-    }
-
-    const { password: _password, ...user } = userWithPassword;
-
-    setAuthCookie(res, user.id);
-    await cacheUser(user); // warm the cache so getMe is a HIT right after login
-
-    res.json({
-      message: "Logged in successfully",
-      user,
-    });
+    setAuthCookie(res, result.token);
+    return res.json({ message: "Logged in successfully", user: result.user });
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).json({ error: "Server error during login." });
+    return res.status(500).json({ error: "Server error during login." });
   }
 };
 
 // ---------- Logout ----------
 export const logout = (req, res) => {
-  // Must use the same options (minus maxAge) or some browsers won't clear it
+  // Same options (minus maxAge), warna kuch browsers cookie clear nahi karte
   const { maxAge, ...clearOptions } = cookieOptions();
   res.clearCookie("token", clearOptions);
-  res.json({ message: "Logged out successfully" });
+  return res.json({ message: "Logged out successfully" });
 };
 
-// ---------- Get current user (Redis cached) ----------
+// ---------- Get current user ----------
 export const getMe = async (req, res) => {
   try {
-    const userId = req.userId;
-    const cacheKey = profileCacheKey(userId);
+    const result = await userService.getCurrentUser({ userId: req.userId });
 
-    try {
-      const cachedUser = await redis.get(cacheKey);
-      if (cachedUser) {
-        res.setHeader("X-Cache", "HIT");
-        return res.json(JSON.parse(cachedUser));
-      }
-    } catch (err) {
-      console.error("Redis cache read failed:", err);
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: userSelect,
-    });
-
-    if (!user) {
+    if (result.status === "not_found") {
       return res.status(404).json({ error: "User not found." });
     }
 
-    await cacheUser(user);
-
-    res.setHeader("X-Cache", "MISS");
-    res.json(user);
+    res.setHeader("X-Cache", result.source);
+    return res.json(result.user);
   } catch (err) {
     console.error("Get me error:", err);
-    res.status(500).json({ error: "Server error." });
+    return res.status(500).json({ error: "Server error." });
   }
 };
 
 // ---------- Update profile ----------
 export const updateProfile = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { channelName, bio, avatarUrl, bannerUrl } = req.body;
-
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(channelName && { channelName: channelName.trim() }),
-        ...(bio !== undefined && { bio }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
-        ...(bannerUrl !== undefined && { bannerUrl }),
-      },
-      select: userSelect,
+    const result = await userService.updateUserProfile({
+      userId: req.userId,
+      data: req.body,
     });
 
-    await cacheUser(updatedUser);
-
-    res.json({ message: "Profile updated successfully", user: updatedUser });
+    return res.json({
+      message: "Profile updated successfully",
+      user: result.user,
+    });
   } catch (err) {
     console.error("Update profile error:", err);
-    res.status(500).json({ error: "Server error while updating profile" });
+    return res
+      .status(500)
+      .json({ error: "Server error while updating profile" });
   }
 };
 
 // ---------- Toggle subscription ----------
 export const toggleSubscription = async (req, res) => {
   try {
-    const subscriberId = req.userId;
-    const { channelId } = req.params;
+    const result = await userService.toggleSubscription({
+      subscriberId: req.userId,
+      channelId: req.params.channelId,
+    });
 
-    if (subscriberId === channelId) {
+    if (result.status === "self_subscribe") {
       return res
         .status(400)
         .json({ error: "Aap apne channel ko subscribe nahi kar sakte." });
     }
-
-    const existingSubscription = await prisma.subscription.findUnique({
-      where: { subscriberId_channelId: { subscriberId, channelId } },
-    });
-
-    let isSubscribed;
-
-    if (existingSubscription) {
-      // deleteMany doesn't throw if a concurrent request already deleted it
-      await prisma.subscription.deleteMany({
-        where: { subscriberId, channelId },
-      });
-      isSubscribed = false;
-    } else {
-      try {
-        await prisma.subscription.create({ data: { subscriberId, channelId } });
-      } catch (err) {
-        // P2002 = unique constraint: a concurrent request (double-click) already created it
-        if (err.code !== "P2002") throw err;
-      }
-      isSubscribed = true;
+    if (result.status === "not_found") {
+      return res.status(404).json({ error: "Channel not found." });
     }
 
-    const subscriberCount = await prisma.subscription.count({
-      where: { channelId },
-    });
-
-    // The channel's cached profile contains `subscribers`, so it is now stale
-    await invalidateUserCache(channelId);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      isSubscribed,
-      subscriberCount,
+      isSubscribed: result.isSubscribed,
+      subscriberCount: result.subscriberCount,
     });
-  } catch (error) {
-    console.error("Subscription error:", error);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (err) {
+    console.error("Subscription error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
 // ---------- Get all subscriptions ----------
 export const getAllSubscriptions = async (req, res) => {
   try {
-    const userId = req.userId;
-
-    const subscriptions = await prisma.subscription.findMany({
-      where: { subscriberId: userId },
-      include: {
-        channel: {
-          select: {
-            id: true,
-            channelName: true,
-            avatarUrl: true,
-            bio: true,
-            bannerUrl: true,
-          },
-        },
-      },
+    const result = await userService.getUserSubscriptions({
+      userId: req.userId,
     });
-
-    const subscribedChannels = subscriptions.map((sub) => sub.channel);
-
-    res.status(200).json({ success: true, subscriptions: subscribedChannels });
-  } catch (error) {
-    console.error("Error fetching subscriptions:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(200).json({ success: true, subscriptions: result.channels });
+  } catch (err) {
+    console.error("Error fetching subscriptions:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
