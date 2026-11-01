@@ -1,4 +1,4 @@
-import prisma from "../config/db.js";
+import prisma, { prismaRead } from "../config/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import redis from "../config/redis.js";
@@ -128,7 +128,7 @@ export const getCurrentUser = async ({ userId }) => {
     console.error("Redis cache read failed:", err.message);
   }
 
-  const user = await prisma.user.findUnique({
+  const user = await prismaRead.user.findUnique({
     where: { id: userId },
     select: userSelect,
   });
@@ -196,7 +196,7 @@ export const toggleSubscription = async ({ subscriberId, channelId }) => {
 
 // ---------- Get all subscriptions ----------
 export const getUserSubscriptions = async ({ userId }) => {
-  const subscriptions = await prisma.subscription.findMany({
+  const subscriptions = await prismaRead.subscription.findMany({
     where: { subscriberId: userId },
     include: {
       channel: {
