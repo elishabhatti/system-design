@@ -1,5 +1,5 @@
 import { Visibility } from "@prisma/client";
-import prisma, { prismaRead } from "../config/db.js";
+import prisma, { prismaRead, readWithFallback } from "../config/db.js";
 import redis from "../config/redis.js";
 import { videoQueue } from "../queues/videoQueues.js";
 import { buildViewLockKey, CACHE_KEYS } from "../constants/cache.keys.js";
@@ -184,9 +184,7 @@ export const listVideos = async () => {
   }
 
   const inPrimaryWindow = Boolean(await cacheGet(PRIMARY_WINDOW_KEY));
-  const db = inPrimaryWindow ? prisma : prismaRead;
-
-  const videos = await db.video.findMany({
+  const videos = await readWithFallback.video.findMany({
     where: {
       visibility: Visibility.PUBLIC,
       AND: [
