@@ -184,29 +184,35 @@ export const listVideos = async () => {
   }
 
   const inPrimaryWindow = Boolean(await cacheGet(PRIMARY_WINDOW_KEY));
-  const videos = await readWithFallback.video.findMany({
-    where: {
-      visibility: Visibility.PUBLIC,
-      AND: [
-        { OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] },
-        {
-          OR: [
-            { status: "READY" },
-            { qualities: { some: {} }, status: { not: "DELETING" } },
-          ],
-        },
-      ],
-    },
-    include: {
-      user: { select: videoOwnerSelect },
-      _count: { select: { likes: true } },
-      qualities: {
-        select: { resolution: true, filepath: true },
-        orderBy: { resolution: "desc" },
+  const db = inPrimaryWindow ? prisma : prismaRead;
+
+  const videos = await readWithFallback(() =>
+    db.video.findMany({
+      where: {
+        visibility: Visibility.PUBLIC,
+        AND: [
+          {
+            OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }],
+          },
+          {
+            OR: [
+              { status: "READY" },
+              { qualities: { some: {} }, status: { not: "DELETING" } },
+            ],
+          },
+        ],
       },
-    },
-    orderBy: { uploadedAt: "desc" },
-  });
+      include: {
+        user: { select: videoOwnerSelect },
+        _count: { select: { likes: true } },
+        qualities: {
+          select: { resolution: true, filepath: true },
+          orderBy: { resolution: "desc" },
+        },
+      },
+      orderBy: { uploadedAt: "desc" },
+    }),
+  );
 
   await cacheSet(CACHE_KEYS.ALL_VIDEOS, VIDEO_LIST_CACHE_TTL_SECONDS, videos);
   return {
