@@ -7,16 +7,10 @@ import {
   Tv,
   User,
   History,
-  PlaySquare,
   Clock,
   ThumbsUp,
   Video,
-  Download,
-  Flame,
-  Music,
-  Gamepad2,
-  Trophy,
-  Lightbulb,
+  ChevronDown,
 } from "lucide-react";
 
 const MAIN_LINKS = [
@@ -27,138 +21,127 @@ const MAIN_LINKS = [
 
 const YOU_LINKS = [
   { path: "/profile", label: "Your channel", icon: User },
-  { path: "/history", label: "History", icon: History },
-  { path: "/playlists", label: "Playlists", icon: PlaySquare },
   { path: "/my-videos", label: "Your videos", icon: Video },
+  { path: "/history", label: "History", icon: History },
   { path: "/watch-later", label: "Watch later", icon: Clock },
   { path: "/liked-videos", label: "Liked videos", icon: ThumbsUp },
-  { path: "/downloads", label: "Downloads", icon: Download },
 ];
 
-const EXPLORE_LINKS = [
-  { label: "Trending", icon: Flame },
-  { label: "Music", icon: Music },
-  { label: "Gaming", icon: Gamepad2 },
-  { label: "Sports", icon: Trophy },
-  { label: "Learning", icon: Lightbulb },
-];
+const SUB_LIMIT = 6;
 
-function SectionLabel({ children }) {
+// Icon sits at the same x-position open or closed, so only the label animates.
+const itemBase =
+  "group relative flex h-10 items-center gap-4 rounded-xl px-[13px] text-[14px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-white/70";
+const itemState = (active) =>
+  active
+    ? "bg-zinc-900 text-white"
+    : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-100";
+
+function Label({ open, children }) {
   return (
-    <p className="px-3 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+    <span
+      className={`truncate whitespace-nowrap transition-opacity duration-200 ${
+        open ? "opacity-100 delay-100" : "pointer-events-none opacity-0"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function NavItem({ to, label, icon: Icon, active, open }) {
+  return (
+    <Link
+      to={to}
+      title={open ? undefined : label}
+      aria-current={active ? "page" : undefined}
+      className={`${itemBase} ${itemState(active)}`}
+    >
+      <Icon
+        className="h-[18px] w-[18px] shrink-0"
+        strokeWidth={active ? 2.1 : 1.6}
+      />
+      <Label open={open}>{label}</Label>
+    </Link>
+  );
+}
+
+function SectionLabel({ open, children }) {
+  return (
+    <p
+      className={`px-[13px] pb-1 text-[12px] font-medium text-zinc-600 transition-opacity duration-200 ${
+        open ? "opacity-100 delay-100" : "opacity-0"
+      }`}
+    >
       {children}
     </p>
   );
 }
 
-function NavItem({ to, label, icon: Icon, active }) {
-  return (
-    <Link
-      to={to}
-      className={`flex items-center gap-3.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
-        active
-          ? "bg-zinc-900 text-white"
-          : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
-      }`}
-    >
-      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2 : 1.6} />
-      <span className="truncate">{label}</span>
-    </Link>
-  );
-}
-
 export default function Sidebar() {
-  const { isSidebarOpen } = useSidebar();
-  const location = useLocation();
-  const isActive = (path) => location.pathname === path;
+  const { isSidebarOpen: open } = useSidebar();
+  const { pathname } = useLocation();
+  const isActive = (path) => pathname === path;
 
   const [subscriptions, setSubscriptions] = useState([]);
+  const [showAll, setShowAll] = useState(false);
 
-  // Fetch real subscriptions from API if available
   useEffect(() => {
     import("../services/api")
       .then(({ fetchSubscriptions }) => {
-        if (fetchSubscriptions) {
-          fetchSubscriptions()
-            .then((res) => {
-              if (Array.isArray(res)) setSubscriptions(res);
-              else if (res?.subscriptions) setSubscriptions(res.subscriptions);
-            })
-            .catch(() => {});
-        }
+        if (!fetchSubscriptions) return;
+        fetchSubscriptions()
+          .then((res) => {
+            if (Array.isArray(res)) setSubscriptions(res);
+            else if (res?.subscriptions) setSubscriptions(res.subscriptions);
+          })
+          .catch(() => {});
       })
       .catch(() => {});
   }, []);
 
-  // ---------- Collapsed (mini) ----------
-  if (!isSidebarOpen) {
-    const miniLinks = [...MAIN_LINKS, { path: "/profile", label: "You", icon: User }];
+  const shownSubs = showAll ? subscriptions : subscriptions.slice(0, SUB_LIMIT);
 
-    return (
-      <aside className="sticky top-14 z-10 hidden h-[calc(100vh-3.5rem)] w-[72px] shrink-0 flex-col items-center gap-1 border-r border-zinc-900 bg-[#09090b] px-1.5 py-2 md:flex">
-        {miniLinks.map(({ path, label, icon: Icon }) => {
-          const active = isActive(path);
-          return (
-            <Link
-              key={label}
-              to={path}
-              title={label}
-              className={`flex w-full flex-col items-center gap-1.5 rounded-lg py-3 transition ${
-                active
-                  ? "bg-zinc-900 text-white"
-                  : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
-              }`}
-            >
-              <Icon className="h-5 w-5" strokeWidth={active ? 2 : 1.6} />
-              <span className="w-full truncate text-center text-[10px] leading-none">
-                {label}
-              </span>
-            </Link>
-          );
-        })}
-      </aside>
-    );
-  }
-
-  // ---------- Expanded ----------
   return (
-    <aside className="sticky top-14 z-10 hidden h-[calc(100vh-3.5rem)] w-60 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-zinc-900 bg-[#09090b] px-2 py-3 md:flex">
-      {/* Main */}
-      <nav className="space-y-0.5 pb-3">
+    <aside
+      className={`sticky top-14 z-10 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col gap-7 overflow-y-auto overflow-x-hidden bg-[#09090b] px-3 py-3 transition-[width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] scrollbar-none md:flex ${
+        open ? "w-60" : "w-[68px]"
+      }`}
+    >
+      <nav className="space-y-0.5">
         {MAIN_LINKS.map((l) => (
-          <NavItem key={l.path} to={l.path} label={l.label} icon={l.icon} active={isActive(l.path)} />
+          <NavItem key={l.path} {...l} to={l.path} active={isActive(l.path)} open={open} />
         ))}
       </nav>
 
-      {/* You */}
-      <nav className="space-y-0.5 border-t border-zinc-900 py-3">
-        <SectionLabel>You</SectionLabel>
+      <nav className="space-y-0.5">
+        <SectionLabel open={open}>You</SectionLabel>
         {YOU_LINKS.map((l) => (
-          <NavItem key={l.path} to={l.path} label={l.label} icon={l.icon} active={isActive(l.path)} />
+          <NavItem key={l.path} {...l} to={l.path} active={isActive(l.path)} open={open} />
         ))}
       </nav>
 
-      {/* Subscriptions */}
-      <div className="space-y-0.5 border-t border-zinc-900 py-3">
-        <SectionLabel>Subscriptions</SectionLabel>
-
-        {subscriptions.length > 0 ? (
-          subscriptions.map((sub, idx) => {
+      {/* Subscriptions only when there is something to show, and only when open */}
+      {open && subscriptions.length > 0 && (
+        <div className="space-y-0.5">
+          <SectionLabel open={open}>Subscriptions</SectionLabel>
+          {shownSubs.map((sub, idx) => {
             const name = sub.channelName || sub.name;
             const to = `/channel/${sub.id || sub.channelName}`;
+            const active = isActive(to);
             return (
               <Link
                 key={sub.id || idx}
                 to={to}
-                className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium transition ${
-                  isActive(to)
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
-                }`}
+                className={`${itemBase} h-9 gap-3 ${itemState(active)}`}
               >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-[11px] font-semibold text-zinc-200">
+                <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-[10px] font-semibold text-zinc-300">
                   {sub.avatarUrl ? (
-                    <img src={sub.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={sub.avatarUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     name?.[0]?.toUpperCase() || "C"
                   )}
@@ -166,38 +149,30 @@ export default function Sidebar() {
                 <span className="truncate">{name}</span>
               </Link>
             );
-          })
-        ) : (
-          <p className="px-3 py-1.5 text-xs text-zinc-600">No subscriptions yet</p>
-        )}
-      </div>
+          })}
 
-      {/* Explore */}
-      <div className="space-y-0.5 border-t border-zinc-900 py-3">
-        <SectionLabel>Explore</SectionLabel>
-        {EXPLORE_LINKS.map(({ label, icon: Icon }) => (
-          <button
-            key={label}
-            type="button"
-            className="flex w-full cursor-pointer items-center gap-3.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-zinc-400 transition hover:bg-zinc-900/60 hover:text-white"
-          >
-            <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.6} />
-            <span className="truncate">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Footer */}
-      <div className="mt-auto space-y-2 border-t border-zinc-900 px-3 pt-4 text-[11px] text-zinc-600">
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          <a href="#" className="transition hover:text-zinc-400">About</a>
-          <a href="#" className="transition hover:text-zinc-400">Contact</a>
-          <a href="#" className="transition hover:text-zinc-400">Terms</a>
-          <a href="#" className="transition hover:text-zinc-400">Privacy</a>
-          <a href="#" className="transition hover:text-zinc-400">Policy &amp; Safety</a>
+          {subscriptions.length > SUB_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className={`${itemBase} h-9 w-full cursor-pointer gap-3 text-zinc-600 hover:bg-zinc-900/70 hover:text-zinc-300`}
+            >
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 transition-transform duration-300 ${
+                  showAll ? "rotate-180" : ""
+                }`}
+              />
+              <span>{showAll ? "Show less" : "Show more"}</span>
+            </button>
+          )}
         </div>
-        <p className="text-zinc-700">© 2026 Orbit</p>
-      </div>
+      )}
+
+      {open && (
+        <p className="mt-auto px-[13px] pb-1 text-[12px] text-zinc-700">
+          © 2026 Orbit
+        </p>
+      )}
     </aside>
   );
 }
