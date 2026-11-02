@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 const isProd = process.env.NODE_ENV === 'production';
+const CONN_ERRORS = new Set(['P1001', 'P1002', 'P1008', 'P1017']);
 
 // Primary: sab writes + jin reads ko latest data chahiye
 const prisma = new PrismaClient({
@@ -18,6 +19,18 @@ export const prismaRead = new PrismaClient({
   datasourceUrl: process.env.DATABASE_REPLICA_URL,
   log: isProd ? ['error'] : ['warn', 'error'],
 });
+
+
+export async function readWithFallback(fn) {
+  try {
+    return await fn(prismaRead);
+  } catch (err) {
+    const code = err.code ?? err.errorCode;
+    if (!CONN_ERRORS.has(code)) throw err; 
+    console.warn(`⚠️ Replica down (${code}), getting back to primary `);
+    return fn(prisma);
+  }
+}
 
 // Dev mein sirf slow queries dikhao (200ms se upar)
 if (!isProd) {
