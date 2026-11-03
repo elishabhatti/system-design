@@ -176,23 +176,31 @@ export const getVideoStatus = async ({ videoId, userId }) => {
 // tak primary se padhta hai. Is se:
 //   - delete ke baad video feed me wapas nahi aati (zombie video fix)
 //   - like/upload ke baad stale replica data cache me nahi bharta (cache poisoning fix)
-export const listVideos = async () => {
-  const cached = await cacheGet(CACHE_KEYS.ALL_VIDEOS);
-  if (cached) {
-    return { videos: JSON.parse(cached), source: "cache" };
+const FEED_PAGE_SIZE = 20;
+const FEED_MAX_PAGE_SIZE = 50;
+
+export const listVideos = async ({ cursor, limit } = {}) => {
+  const take = Math.min(
+    Math.max(parseInt(limit, 10) || FEED_PAGE_SIZE, 1),
+    FEED_MAX_PAGE_SIZE,
+  );
+  // Sirf pehla page cache hota hai (sabse zyada hit), isliye invalidation wahi purani rahegi
+  const cacheable = !cursor && take === FEED_PAGE_SIZE;
+
+  if (cacheable) {
+    const cached = await cacheGet(CACHE_KEYS.ALL_VIDEOS);
+    if (cached) return { ...JSON.parse(cached), source: "cache" };
   }
 
   const inPrimaryWindow = Boolean(await cacheGet(PRIMARY_WINDOW_KEY));
   const db = inPrimaryWindow ? prisma : prismaRead;
 
-  const videos = await readWithFallback(() =>
+  const rows = await readWithFallback(() =>
     db.video.findMany({
       where: {
         visibility: Visibility.PUBLIC,
         AND: [
-          {
-            OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }],
-          },
+          { OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] },
           {
             OR: [
               { status: "READY" },
@@ -209,17 +217,21 @@ export const listVideos = async () => {
           orderBy: { resolution: "desc" },
         },
       },
-      orderBy: { uploadedAt: "desc" },
+      orderBy: [{ uploadedAt: "desc" }, { id: "desc" }], // id tiebreak, warna cursor ghalat chalta hai
+      take: take + 1, // ek extra, taake pata chale aur page hai ya nahi
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
     }),
   );
 
-  await cacheSet(CACHE_KEYS.ALL_VIDEOS, VIDEO_LIST_CACHE_TTL_SECONDS, videos);
-  return {
-    videos,
-    source: inPrimaryWindow ? "primary-window" : "replica-db",
-  };
-};
+  const hasMore = rows.length > take;
+  const videos = hasMore ? rows.slice(0, take) : rows;
+  const nextCursor = hasMore ? videos[videos.length - 1].id : null;
+  const page = { videos, nextCursor };
 
+  if (cacheable) await cacheSet(CACHE_KEYS.ALL_VIDEOS, VIDEO_LIST_CACHE_TTL_SECONDS, page);
+
+  return { ...page, source: inPrimaryWindow ? "primary-window" : "replica-db" };
+};
 // ---------- Delete ----------
 // Level: STRONG (read + write dono primary pe), aur feed ke liye primary window khulti hai.
 export const deleteVideoById = async ({ videoId, userId }) => {
