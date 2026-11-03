@@ -55,10 +55,14 @@ export const getVideoStatus = async (req, res) => {
 export const getVideos = async (req, res) => {
   try {
     const currentPort = process.env.PORT || 3000;
-    const { videos, source } = await videoService.listVideos();
+    const { videos, source, nextCursor } = await videoService.listVideos({
+      cursor: req.query.cursor,
+      limit: req.query.limit
+    });
 
     return res.status(200).json({
       videos,
+      nextCursor,
       success: true,
       source,
       servedByPort: currentPort,
