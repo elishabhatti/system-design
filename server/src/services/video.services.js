@@ -346,8 +346,5 @@ export const toggleLike = async ({ videoId, userId, io }) => {
   }
 
   const likeCount = await prisma.like.count({ where: { videoId } });
-
-  await invalidateVideoListCache();
-
   return { status: "ok", isLiked, likeCount };
 };
