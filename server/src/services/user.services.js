@@ -128,7 +128,7 @@ export const getCurrentUser = async ({ userId }) => {
     console.error("Redis cache read failed:", err.message);
   }
 
-  const user = await prismaRead.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: userSelect,
   });
