@@ -149,7 +149,6 @@ export const createVideo = async ({ fileMeta, payload, userId }) => {
     await invalidateVideoListCache();
     throw err;
   }
-  await invalidateVideoListCache();
   return video;
 };
 
