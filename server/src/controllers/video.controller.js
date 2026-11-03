@@ -23,7 +23,7 @@ export const uploadVideo = async (req, res) => {
     });
   } catch (error) {
     console.error("Upload error:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -48,7 +48,7 @@ export const getVideoStatus = async (req, res) => {
     return res.status(200).json({ success: true, video: result.video });
   } catch (error) {
     console.error("Error fetching video status:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -65,7 +65,7 @@ export const getVideos = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching videos:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -88,7 +88,7 @@ export const deleteVideo = async (req, res) => {
     return res.status(200).json({ message: "Video deleted successfully." });
   } catch (error) {
     console.error("Error deleting video:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -109,7 +109,7 @@ export const incrementVideoView = async (req, res) => {
     return res.status(200).json({ success: true, views: result.views });
   } catch (error) {
     console.error("Error incrementing view:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
