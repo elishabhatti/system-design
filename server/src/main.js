@@ -1,4 +1,3 @@
-// dotenv SABSE PEHLE: app.js import hote hi process.env padhta hai (ESM imports hoist hote hain)
 import "dotenv/config";
 
 import { server, io, pubClient, subClient } from "./app.js";

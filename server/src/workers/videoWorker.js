@@ -8,6 +8,8 @@ import fs from "fs";
 import util from "util";
 import { downloadToFile } from "../lib/downloadToFile.js";
 import { CACHE_KEYS } from "../constants/cache.keys.js";
+import Redis from "ioredis";
+import { Emitter } from "@socket.io/redis-emitter";
 
 // Runs cloudinary.config({...}) as a side effect. The worker is a separate
 // process from the server, so it needs this import for itself.
@@ -17,6 +19,18 @@ const connection = {
   host: process.env.REDIS_HOST || "localhost",
   port: parseInt(process.env.REDIS_PORT || "6379", 10),
 };
+
+// Worker is a separate process, so it has no Socket.io server.
+// Emitter publishes events through Redis; the servers' redis-adapter
+// picks them up and delivers to the right user (on any server).
+const emitterClient = new Redis({
+  host: process.env.REDIS_HOST || "127.0.0.1",
+  port: parseInt(process.env.REDIS_PORT || "6379", 10),
+});
+emitterClient.on("error", (e) =>
+  console.error("[Worker] Emitter redis error:", e.message)
+);
+const io = new Emitter(emitterClient);
 
 // HLS output: public/hls/<videoId>/master.m3u8
 // Express must serve this SAME folder (app.use("/hls", ...)).
@@ -163,15 +177,21 @@ async function markPlayable({ videoId, videoTitle, userId, senderInfo }) {
     skipDuplicates: true,
   });
 
-  if (global.io) {
+  // Real-time push via Redis emitter. Room name must be String(userId),
+  // same as socket.join(socket.data.userId) in app.js.
+  // A failed emit must never fail the video publish.
+  try {
+    const createdAt = new Date();
     subscriptions.forEach((sub) => {
-      global.io.to(sub.subscriberId).emit("newNotification", {
+      io.to(String(sub.subscriberId)).emit("newNotification", {
         type: "UPLOAD",
         message,
         sender: senderInfo,
-        createdAt: new Date(),
+        createdAt,
       });
     });
+  } catch (err) {
+    console.error("[Worker] Realtime emit failed:", err.message);
   }
 }
 
